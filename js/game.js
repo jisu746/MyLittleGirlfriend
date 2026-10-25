@@ -18,6 +18,15 @@ const store = {
 const iga = n => { const c = n.charCodeAt(n.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '이' : '가'; };
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const DEBUG = /[?&]debug/.test(location.search);
+// GitHub Pages caches files separately; if this script doesn't match the page, reload once with fresh files
+const BUILD = '4';
+{
+  const meta = document.querySelector('meta[name="build"]');
+  if ((!meta || meta.content !== BUILD) && !/[?&]r=/.test(location.search)) {
+    location.replace(location.pathname + '?r=' + Date.now() + location.hash);
+    throw new Error('stale page, reloading');
+  }
+}
 
 /* ================= look & options ================= */
 const OPTIONS = Object.assign({}, GIRL_OPTIONS, { diff: [['easy', '조금'], ['normal', '보통'], ['hard', '폭탄']] });
@@ -384,12 +393,20 @@ function init3D() {
   brm.add(bstick, bristle); brm.position.set(0.13, -0.05, 0.05); brm.rotation.set(-0.3, 0.22, 0);
   const torch = vm(new THREE.CylinderGeometry(0.018, 0.024, 0.14, 10), '#4a4a58'); torch.rotation.x = Math.PI / 2;
   torch.position.set(-0.13, -0.12, -0.22); torch.visible = false;
-  hand.add(tw, vac, brm, torch);
+  const hammer = new THREE.Group();
+  const hHandle = vm(new THREE.CylinderGeometry(0.012, 0.014, 0.32, 8), '#a8784b'); hHandle.position.y = -0.1;
+  const hHead = vm(new THREE.BoxGeometry(0.12, 0.05, 0.05), '#5a5f6e'); hHead.position.y = 0.07;
+  hammer.add(hHandle, hHead); hammer.position.set(0.17, -0.14, -0.3); hammer.rotation.set(0.2, 0, -0.35);
+  const lighter = new THREE.Group();
+  const lBody = vm(new THREE.BoxGeometry(0.03, 0.06, 0.015), '#e2384f');
+  const lFlame = vm(new THREE.ConeGeometry(0.009, 0.03, 8), '#ffb020'); lFlame.position.y = 0.05;
+  lighter.add(lBody, lFlame); lighter.position.set(0.12, -0.1, -0.22);
+  hand.add(tw, vac, brm, torch, hammer, lighter);
 
   const raycaster = new THREE.Raycaster();
   for (const m of furnMeshes) m.userData.home = { p: m.position.clone(), r: m.rotation.clone() };
   R = { renderer, scene, camera, aimTargets, raycaster, flash, doorPivot, hairGeo, hairPos, hairCol, MAXH, MAXV,
-    sprites, furnMeshes, flameTex, fireLight, flames: [], hand, tw, twA, twB, vac, brm, bristle, torch };
+    sprites, furnMeshes, flameTex, fireLight, flames: [], hand, hammer, lighter, lFlame, door, doorDark, puddle: null, tw, twA, twB, vac, brm, bristle, torch };
   resize();
 }
 
@@ -408,11 +425,11 @@ const player = { x: -0.4, z: 1.0, yaw: 0, pitch: -0.1, eye: 0.85, prone: false }
 const input = { keys: {}, use: false, usePrev: false, magHold: false, joyX: 0, joyY: 0 };
 let tool = 'tweezers', magOn = false, flashOn = false;
 let paused = true, started = false;
-const PLAYABLE = { clean: 1, reveal: 1, keepclean: 1 };
+const PLAYABLE = { clean: 1, reveal: 1, keepclean: 1, act: 1 };
 
 function newActor(kind) {
   return { kind, x: 0, z: 0, f: Math.PI / 2, tx: 0, tz: 0, speed: 0.85, vis: false, walking: false, anim: rand(0, 5),
-    shock: false, mad: false, speech: '', speechT: 0, speechMad: false, exitAfter: false, lookAtPlayer: false };
+    shock: false, mad: false, brush: 0, burst: 0, speech: '', speechT: 0, speechMad: false, exitAfter: false, lookAtPlayer: false };
 }
 function newGame() {
   const d = DIFF[look.diff];
@@ -455,7 +472,7 @@ function addHair(x, z, o = {}) {
   const wave = look.style === 'wave' && !fine && !curly;
   const h = {
     x: clamp(x, RX0 + 0.04, RX1 - 0.04), z: clamp(z, RZ0 + 0.04, RZ1 - 0.04), ang: rand(0, Math.PI), len, curly, fine,
-    shape: [], pts: [], state: 'floor', t: 0, base: new THREE.Color(curly ? '#0e0907' : look.hair),
+    shape: [], pts: [], state: o.fall ? 'fall' : 'floor', t: 0, dur: rand(0.7, 1.0), sx: o.sx, sy: o.sy, sz: o.sz, base: new THREE.Color(curly ? '#0e0907' : look.hair),
     rug: false, under: null, tx: 0, tz: 0, y: 0, hintT: 0
   };
   if (!curly) h.base.offsetHSL(0, 0, rand(-0.04, 0.05) + (fine ? 0.08 : 0));
@@ -495,7 +512,7 @@ function hairDist(h, x, z) {
   for (const [px, pz] of h.pts) { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < m) m = d; }
   return Math.sqrt(m);
 }
-const active = h => h.state === 'floor';
+const active = h => h.state === 'floor' || h.state === 'fall';
 const remaining = () => { let n = 0; for (const h of G.hairs) if (active(h)) n++; return n; };
 
 /* ================= aim & tools ================= */
@@ -651,14 +668,51 @@ $('skipBtn').addEventListener('click', e => {
 function introLines() {
   const g = G.girl;
   return [
-    { who: 'nar', text: '토요일 아침.' },
-    { who: 'girl', text: '자기야~ 나 먼저 나갈게! 친구들이랑 놀다가 저녁에 올게~' },
+    { who: 'nar', text: '토요일 아침.', act: () => { G.storyWander = true; G.wanderPause = 0.4; } },
+    { who: 'girl', text: '자기야~ 나 먼저 나갈게! 잠깐만, 준비 좀 하고~' },
+    { who: 'girl', text: '머리끈 어디 뒀더라… 아 진짜 머리 왜 이렇게 빠지지?', act: () => { g.brush = 2.4; g.burst = 10; } },
+    { who: 'me', text: '(…방금도 우수수 떨어졌는데.)' },
+    { who: 'girl', text: '친구들이랑 놀다가 저녁에 올게~ 자기도 나가지?' },
     { who: 'me', text: '응! 나도 좀 이따 나갈게~' },
-    { who: 'girl', text: '오늘 하루 종일 밖에 있는 거지? 이따 봐 ♡', act: () => { g.lookAtPlayer = false; g.tx = DOOR_IN.x; g.tz = DOOR_IN.z; g.exitAfter = true; G.doorWant = 1; } },
+    { who: 'girl', text: '오늘 하루 종일 밖에 있는 거지? 이따 봐 ♡', act: () => { G.storyWander = false; g.brush = 0; g.pause = 0; g.lookAtPlayer = false; g.tx = DOOR_IN.x; g.tz = DOOR_IN.z; g.exitAfter = true; G.doorWant = 1; } },
     { who: 'inner', text: '(…사실 안 나갈 거지롱.)' },
     { who: 'inner', text: '(바닥이 머리카락 천지네… 몰래 싹 치워서 서프라이즈 해줘야지!)' },
-    { who: 'nar', text: `방에 숨은 머리카락 ${G.spawned}가닥을 전부 찾아 치우세요. 시간 제한은 없어요.` }
+    { who: 'nar', text: '방에 숨은 머리카락을 전부 찾아 치우세요. 시간 제한은 없어요.' }
   ];
+}
+function storyTick(dt) {
+  const g = G.girl;
+  if (g.brush > 0) {
+    g.brush -= dt;
+    while (g.burst > 0 && Math.random() < dt * 6) { g.burst--; shedHair(0.3); }
+  }
+  if (G.storyWander) {
+    g.lookAtPlayer = false;
+    if (!g.walking && g.brush <= 0) {
+      G.wanderPause -= dt;
+      if (G.wanderPause <= 0) {
+        for (let i = 0; i < 40; i++) {
+          const x = rand(-1.6, 2.0), z = rand(-1.7, 0.6);
+          if (!blocked(x, z, 0.32) && Math.hypot(x - g.x, z - g.z) > 0.8 && Math.hypot(x - player.x, z - player.z) > 1.0) { g.tx = x; g.tz = z; break; }
+        }
+        G.wanderPause = rand(0.5, 1.4);
+      }
+    }
+    G.shedAcc = (G.shedAcc || 0) + dt * (g.walking ? 1.7 : 0.7);
+    while (G.shedAcc >= 1) { G.shedAcc--; shedHair(0.35); }
+  }
+  // keep her in view while she talks
+  if (g.vis) {
+    const want = Math.atan2(-(g.x - player.x), -(g.z - player.z));
+    player.yaw += wrapAng(want - player.yaw) * Math.min(1, dt * 2.5);
+    player.pitch = lerp(player.pitch, -0.12, dt * 2);
+  }
+}
+function shedHair(spread) {
+  const g = G.girl;
+  let x = g.x + rand(-spread, spread), z = g.z + rand(-spread, spread);
+  if (solidAt(x, z)) { x = g.x; z = g.z; }
+  addHair(x, z, { fine: Math.random() < 0.25, fall: true, sx: g.x + rand(-0.1, 0.1), sy: rand(1.25, 1.5), sz: g.z + rand(-0.1, 0.1) });
 }
 function beginCleaning() {
   const g = G.girl;
@@ -695,8 +749,7 @@ function startReveal() {
     { who: 'girl', text: '…어?', act: () => { g.shock = m.shock = true; g.lookAtPlayer = m.lookAtPlayer = true; g.tx = g.x; g.tz = g.z; m.tx = m.x; m.tz = m.z; sfx.shock(); } },
     { who: 'girl', text: '자, 자기야…?! 나간다며…?!' },
     { who: 'man', text: '…누구세요?' },
-    { who: 'inner', text: '(…저 꼬불꼬불한 파마머리. 아까 그 꼬불털…!)', pic: true },
-    { who: 'inner', text: '(바람이었구나.)' }
+    { who: 'inner', text: '(…저 꼬불꼬불한 파마머리. 아까 그 꼬불털…!)', pic: true }
   ];
   G.qT = 0; G.qWait = 0; G.qHinted = false;
 }
@@ -733,71 +786,141 @@ function showChoice() {
 }
 document.querySelectorAll('#choice [data-end]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); chooseEnding(b.dataset.end); }));
 
+const ACTS = {
+  smash: { use: '🔨 때리기', need: 8, goal: n => `🔨 가구를 때려 부수자 ${n}/8`, pause: '망치를 들었다' },
+  cry: { use: '😢 울기', need: 5, goal: n => `😢 누르고 있으면 눈물이… ${Math.min(100, Math.round(n / 5 * 100))}%`, pause: '눈물이 차오른다' },
+  fire: { use: '🔥 불붙이기', need: 5, goal: n => `🔥 라이터로 불을 붙이자 ${n}/5`, pause: '라이터를 꺼냈다' },
+  leave: { use: '🚪 문 열기', need: 1, goal: () => '🚪 문으로 걸어가서 나가자', pause: '조용히 나가자' }
+};
 function chooseEnding(id) {
   $('choice').classList.add('hidden');
   const g = G.girl, m = G.man;
-  G.ending = id; G.endT = 0;
-  const dex = loadDex(); if (!dex.includes(id)) { dex.push(id); store.set('hairclean3d_dex', JSON.stringify(dex)); }
+  G.endT = 0;
   if (id === 'clean') {
+    G.ending = id;
     G.phase = 'keepclean';
     thought('(…일단 청소부터 끝내자.)', 3);
     g.shock = false; m.shock = false;
     if (remaining() === 0) { G.endT = -2; G.phase = 'ending'; setTimeout(() => say(g, '…다 치운 거야? 미안해…', 2.5), 600); return; }
-    if (isTouch) setPaused(false); else { $('pauseTitle').textContent = '계속 청소하기'; setPaused(true); }
-    return;
+  } else {
+    G.phase = 'act'; G.act = id; G.actN = 0; G.actHold = 0; G.actLineT = 2;
+    if (id === 'smash') { thought('(…다 부숴버리겠어.)', 3); say(g, '자, 자기야… 그거 내려놔…', 2.6); }
+    else if (id === 'cry') { thought('(…청소는 왜 했을까.)', 3.5); say(g, '자, 자기야…?', 2.6); }
+    else if (id === 'fire') { thought('(…다 태워버릴 거야.)', 3); say(m, '저, 저기요…? 라이터는 왜…', 2.6); }
+    else { thought('(……나가자.)', 3); say(g, '자, 자기야 잠깐만…!', 2.6); }
   }
-  G.phase = 'ending';
+  input.use = false; input.usePrev = false;
+  if (isTouch) setPaused(false);
+  else { $('pauseTitle').textContent = id === 'clean' ? '계속 청소하기' : ACTS[id].pause; setPaused(true); }
+}
+const furnRay = new THREE.Raycaster();
+function rayFirst(targets, max) {
+  furnRay.setFromCamera(center, R.camera);
+  const hit = furnRay.intersectObjects(targets, false)[0];
+  return hit && hit.distance <= max ? hit : null;
+}
+function tickAct(dt, pressed) {
+  const id = G.act, g = G.girl, m = G.man;
+  G.actLineT -= dt;
+  const react = (a, lines) => { if (G.actLineT <= 0 && a.vis) { say(a, pick(lines), 2.2); G.actLineT = rand(2.5, 4); } };
   if (id === 'smash') {
-    thought('(으아아아아아!!!)', 2.5); sfx.crash(); shake(2.5);
-    say(g, '꺄아악!!', 2.5); say(m, '미, 미친…!', 2.5);
-    for (const mesh of R.furnMeshes) mesh.userData.v = { x: rand(-2.5, 2.5), y: rand(2, 5), z: rand(-2.5, 2.5), a: rand(-6, 6), b: rand(-6, 6) };
-    G.endDur = 4;
+    if (pressed) {
+      G.hand.swing = 1;
+      const hit = rayFirst(R.furnMeshes, 2.3);
+      if (hit) {
+        const mesh = hit.object, cp = R.camera.position;
+        const dx = mesh.position.x - cp.x, dz = mesh.position.z - cp.z, dl = Math.hypot(dx, dz) || 1;
+        mesh.userData.v = { x: dx / dl * rand(2.5, 4.5) + rand(-1, 1), y: rand(2.5, 4.5), z: dz / dl * rand(2.5, 4.5) + rand(-1, 1), a: rand(-8, 8), b: rand(-8, 8) };
+        if (!mesh.userData.hit) { mesh.userData.hit = true; G.actN++; }
+        sfx.smash(); shake(0.15);
+        g.shock = m.shock = true;
+        G.actLineT = Math.min(G.actLineT, 0);
+        react(Math.random() < 0.6 ? g : m, ['꺄악!!', '자기야 그만해!!', '미, 미친…!', '진정해 자기야!!', '으악!']);
+      } else sfx.miss();
+    }
   } else if (id === 'cry') {
-    thought('(…청소는 왜 했을까.)', 4);
-    $('tint').className = 'blue'; sfx.sad();
-    say(g, '자, 자기야… 울어…?', 2.8);
-    G.endDur = 5;
+    if (input.use) {
+      G.actN += dt;
+      if (Math.random() < dt * 9) spawnTear();
+      $('tint').className = 'blue';
+      player.pitch = lerp(player.pitch, -0.9, dt * 0.6);
+      growPuddle(dt);
+      react(g, ['자기야… 울지 마…', '(훌쩍)', '내가… 미안해…', '자기야…']);
+    } else if (G.actN < ACTS.cry.need) $('tint').className = '';
   } else if (id === 'fire') {
-    thought('(…다 타버려라.)', 2.5);
-    $('tint').className = 'fire'; sfx.fire();
-    say(g, '불, 불이야!!', 2.5); say(m, '으아악 튀어!!', 2.5);
-    for (const a of [g, m]) { a.lookAtPlayer = false; a.shock = true; a.tx = DOOR_IN.x; a.tz = DOOR_IN.z; a.speed = 1.8; a.exitAfter = true; }
-    G.endDur = 5;
+    R.lighter.userData.on = input.use;
+    if (input.use) {
+      const hit = rayFirst(R.aimTargets, 2.2);
+      if (hit) {
+        G.actHold += dt;
+        if (G.actHold >= 0.5) {
+          G.actHold = 0; G.actN++;
+          for (let i = 0; i < 3; i++) spawnFlameAt(hit.point.x + rand(-0.15, 0.15), hit.point.y, hit.point.z + rand(-0.15, 0.15), rand(0.5, 1.1));
+          sfx.whoosh();
+          $('tint').className = 'fire';
+          g.shock = m.shock = true;
+          G.actLineT = Math.min(G.actLineT, 0);
+          react(Math.random() < 0.5 ? g : m, ['불, 불이야!!', '자기야 미쳤어?!', '으아악 소화기!!', '꺄아악!!']);
+        }
+      } else if (G.farWarnT <= 0) { G.farWarnT = 1.5; toast('더 가까이 가서 불을 붙여요'); }
+    } else G.actHold = 0;
+    // fire spreads a little on its own
+    if (R.flames.length && R.flames.length < 90 && Math.random() < dt * R.flames.length * 0.08) {
+      const f = pick(R.flames);
+      spawnFlameAt(f.position.x + rand(-0.4, 0.4), 0, f.position.z + rand(-0.4, 0.4), rand(0.5, 1.2));
+    }
   } else if (id === 'leave') {
-    thought('(……)', 3);
-    say(g, '자, 자기야 잠깐만…!', 3);
-    G.endDur = 4.5;
+    if (pressed) {
+      const hit = rayFirst([R.door, R.doorDark], 2.0);
+      if (hit) { G.actN = 1; G.doorWant = 1; sfx.doorOpen(); }
+      else toast('문까지 걸어가서 문을 보고 눌러요 🚪');
+    }
+    react(g, ['자기야 잠깐만…!', '내 말 좀 들어봐…', '가지 마…!']);
   }
+  if (G.actN >= ACTS[id].need) finishAct();
+}
+function finishAct() {
+  const id = G.act, g = G.girl, m = G.man;
+  G.phase = 'ending'; G.ending = id; G.endT = 0;
+  input.use = false; sfx.vac(false);
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (id === 'smash') { thought('(…후.)', 2.5); G.endDur = 2.8; }
+  else if (id === 'cry') { thought('(…)', 2.5); G.endDur = 3; }
+  else if (id === 'fire') {
+    for (let i = 0; i < 25; i++) spawnFlameAt(rand(RX0 + 0.3, RX1 - 0.3), 0, rand(RZ0 + 0.3, RZ1 - 0.3), rand(0.8, 1.8));
+    say(g, '꺄아아악!!', 2); say(m, '튀어!!', 2);
+    for (const a of [g, m]) { a.lookAtPlayer = false; a.shock = true; a.tx = DOOR_IN.x; a.tz = DOOR_IN.z; a.speed = 1.8; a.exitAfter = true; }
+    G.doorWant = 1; G.endDur = 3.4;
+  } else if (id === 'leave') { G.endDur = 2.2; }
+}
+function physicsStep(dt) {
+  for (const mesh of R.furnMeshes) {
+    const v = mesh.userData.v; if (!v) continue;
+    v.y -= 9.8 * dt;
+    mesh.position.x = clamp(mesh.position.x + v.x * dt, RX0 + 0.2, RX1 - 0.2);
+    mesh.position.z = clamp(mesh.position.z + v.z * dt, RZ0 + 0.2, RZ1 - 0.2);
+    mesh.position.y += v.y * dt;
+    if (mesh.position.y < 0.08) { mesh.position.y = 0.08; v.y *= -0.35; v.x *= 0.6; v.z *= 0.6; v.a *= 0.6; v.b *= 0.6; }
+    mesh.rotation.x += v.a * dt; mesh.rotation.z += v.b * dt;
+  }
+}
+function flamesStep(dt) {
+  for (const f of R.flames) {
+    f.userData.t += dt;
+    const s = Math.min(1, f.userData.t * 0.8) * f.userData.s * (0.85 + Math.sin(f.userData.t * 14 + f.id) * 0.15);
+    f.scale.set(s * 0.5, s, 1);
+  }
+  R.fireLight.intensity = R.flames.length ? Math.min(3, R.flames.length * 0.15) + Math.sin(G.time * 30 + G.endT * 30) * 0.5 : 0;
+  if (R.flames.length) { const f = R.flames[R.flames.length - 1]; R.fireLight.position.set(f.position.x, 0.8, f.position.z); }
 }
 function tickEnding(dt) {
   G.endT += dt;
   const id = G.ending;
-  if (id === 'smash') {
-    for (const mesh of R.furnMeshes) {
-      const v = mesh.userData.v; if (!v) continue;
-      v.y -= 9.8 * dt;
-      mesh.position.x = clamp(mesh.position.x + v.x * dt, RX0 + 0.2, RX1 - 0.2);
-      mesh.position.z = clamp(mesh.position.z + v.z * dt, RZ0 + 0.2, RZ1 - 0.2);
-      mesh.position.y += v.y * dt;
-      if (mesh.position.y < 0.08) { mesh.position.y = 0.08; v.y *= -0.35; v.x *= 0.6; v.z *= 0.6; v.a *= 0.6; v.b *= 0.6; }
-      mesh.rotation.x += v.a * dt; mesh.rotation.z += v.b * dt;
-    }
-  } else if (id === 'cry') {
-    player.pitch = lerp(player.pitch, -1.1, dt * 0.8);
-    if (Math.random() < dt * 6) spawnTear();
-  } else if (id === 'fire') {
-    if (R.flames.length < 70 && Math.random() < dt * 30) spawnFlame();
-    for (const f of R.flames) { f.userData.t += dt; const s = Math.min(1, f.userData.t * 0.8) * f.userData.s * (0.85 + Math.sin(f.userData.t * 14 + f.id) * 0.15); f.scale.set(s * 0.5, s, 1); }
-    R.fireLight.intensity = 3 + Math.sin(G.endT * 30) * 0.8;
-    if (G.endT > 3.6) $('fade').classList.add('on');
-  } else if (id === 'leave') {
-    const dx = DOOR_IN.x - player.x, dz = DOOR_IN.z + 0.25 - player.z, d = Math.hypot(dx, dz);
-    player.yaw = lerp(player.yaw, player.yaw + wrapAng(Math.atan2(-dx, -dz) - player.yaw), dt * 3);
-    player.pitch = lerp(player.pitch, 0, dt * 2);
-    if (d > 0.1) { player.x += dx / d * dt * 1.2; player.z += dz / d * dt * 1.2; G.hand.bob += dt * 9; }
-    if (G.endT > 2.4) { G.doorWant = 1; $('fade').classList.add('on'); }
-  } else if (id === 'clean') {
-    // reached from keepclean once the floor is spotless
+  if (id === 'cry' && Math.random() < dt * 5) spawnTear();
+  if (id === 'fire' && G.endT > 2) $('fade').classList.add('on');
+  if (id === 'leave') {
+    player.x = lerp(player.x, DOOR_IN.x, dt * 1.5); player.z = lerp(player.z, DOOR_IN.z - 0.2, dt * 1.5);
+    if (G.endT > 0.6) $('fade').classList.add('on');
   }
   if (G.endT >= (G.endDur || 2.5) && !G.over) showResult();
 }
@@ -807,16 +930,29 @@ function spawnTear() {
   $('screen-game').appendChild(el);
   setTimeout(() => el.remove(), 2600);
 }
-function spawnFlame() {
+function growPuddle(dt) {
+  if (!R.puddle) {
+    R.puddle = new THREE.Mesh(new THREE.CircleGeometry(1, 32), new THREE.MeshBasicMaterial({ color: '#8fc4ff', transparent: true, opacity: 0.45, depthWrite: false }));
+    R.puddle.rotation.x = -Math.PI / 2; R.scene.add(R.puddle);
+  }
+  if (!R.puddle.visible || !R.puddle.userData.set) {
+    R.puddle.visible = true; R.puddle.userData.set = true; R.puddle.userData.r = 0.02;
+    R.puddle.position.set(player.x - Math.sin(player.yaw) * 0.35, inRug(player.x, player.z) ? 0.02 : 0.006, player.z - Math.cos(player.yaw) * 0.35);
+  }
+  R.puddle.userData.r = Math.min(0.6, R.puddle.userData.r + dt * 0.12);
+  R.puddle.scale.set(R.puddle.userData.r, R.puddle.userData.r, 1);
+}
+function spawnFlameAt(x, y, z, s) {
+  if (R.flames.length > 110) return;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: R.flameTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   sp.center.set(0.5, 0.05);
-  let x, z;
-  do { x = rand(RX0 + 0.2, RX1 - 0.2); z = rand(RZ0 + 0.2, RZ1 - 0.2); } while (Math.hypot(x - player.x, z - player.z) < 0.7);
-  sp.position.set(x, 0, z); sp.userData = { t: 0, s: rand(0.6, 1.6) }; sp.scale.set(0.01, 0.01, 1);
+  sp.position.set(clamp(x, RX0 + 0.1, RX1 - 0.1), y, clamp(z, RZ0 + 0.1, RZ1 - 0.1));
+  sp.userData = { t: 0, s }; sp.scale.set(0.01, 0.01, 1);
   R.scene.add(sp); R.flames.push(sp);
 }
 function resetScene() {
-  for (const m of R.furnMeshes) { const h = m.userData.home; m.position.copy(h.p); m.rotation.copy(h.r); m.userData.v = null; }
+  for (const m of R.furnMeshes) { const h = m.userData.home; m.position.copy(h.p); m.rotation.copy(h.r); m.userData.v = null; m.userData.hit = false; }
+  if (R.puddle) { R.puddle.visible = false; R.puddle.userData.set = false; }
   for (const f of R.flames) { R.scene.remove(f); f.material.dispose(); }
   R.flames = []; R.fireLight.intensity = 0;
   $('tint').className = ''; $('fade').classList.remove('on'); $('game').classList.remove('shaking');
@@ -839,10 +975,15 @@ function update(dt) {
     updateAim();
     const pressed = input.use && !input.usePrev;
     input.usePrev = input.use;
-    if (pressed && tool === 'tweezers') useTweezers();
-    sfx.vac(vacuumStep(dt) && aim.ok);
-    broomStep(dt);
+    if (ph === 'act') tickAct(dt, pressed);
+    else {
+      if (pressed && tool === 'tweezers') useTweezers();
+      sfx.vac(vacuumStep(dt) && aim.ok);
+      broomStep(dt);
+    }
   } else { sfx.vac(false); movePlayer(0); }
+  physicsStep(dt); flamesStep(dt);
+  if (ph === 'story') storyTick(dt);
 
   updateActors(dt);
 
@@ -850,7 +991,8 @@ function update(dt) {
   for (const h of G.hairs) {
     h.t += dt;
     if (h.hintT > 0) h.hintT -= dt;
-    if (h.state === 'pick' && h.t > 0.35) h.state = 'gone';
+    if (h.state === 'fall' && h.t >= h.dur) { h.state = 'floor'; h.t = 0; }
+    else if (h.state === 'pick' && h.t > 0.35) h.state = 'gone';
     else if (h.state === 'suck' && h.t > 0.15) h.state = 'gone';
   }
   if (Math.random() < 0.05 && G.hairs.some(h => h.state === 'gone')) G.hairs = G.hairs.filter(h => h.state !== 'gone');
@@ -922,7 +1064,8 @@ function updateActors(dt) {
     if (a.speechT > 0) a.speechT -= dt;
     if (!a.vis) continue;
     const dx = a.tx - a.x, dz = a.tz - a.z, d = Math.hypot(dx, dz), sp = a.speed * dt;
-    if (d > sp && d > 0.01) { a.x += dx / d * sp; a.z += dz / d * sp; a.walking = true; a.f = Math.atan2(dz, dx); }
+    if (a.brush > 0) a.walking = false;
+    else if (d > sp && d > 0.01) { a.x += dx / d * sp; a.z += dz / d * sp; a.walking = true; a.f = Math.atan2(dz, dx); }
     else {
       a.x = a.tx; a.z = a.tz; a.walking = false;
       if (a.exitAfter) { a.vis = false; a.exitAfter = false; if (!G.girl.vis && !G.man.vis || a.kind === 'man' && G.phase === 'keepclean' || G.phase === 'story') G.doorWant = 0; }
@@ -944,8 +1087,12 @@ function writeHairs() {
     if (h.state === 'gone') continue;
     const segs = h.shape.length - 1;
     if (v + segs * 2 > MAXV) break;
-    let ox = 0, oy = h.y, oz = 0, scale = 1, alpha = 1;
-    if (h.state === 'pick') { const k = h.t / 0.35; oy = h.y + k * 0.25; alpha = 1 - k; }
+    let ox = 0, oy = h.y, oz = 0, scale = 1, alpha = 1, rot = 0;
+    if (h.state === 'fall') {
+      const k = Math.min(1, h.t / h.dur);
+      ox = lerp(h.sx, h.x, k) - h.x + Math.sin(k * 7) * 0.05; oz = lerp(h.sz, h.z, k) - h.z;
+      oy = lerp(h.sy, h.y, k * k); rot = (1 - k) * Math.sin(h.t * 8) * 0.9;
+    } else if (h.state === 'pick') { const k = h.t / 0.35; oy = h.y + k * 0.25; alpha = 1 - k; }
     else if (h.state === 'suck') { const k = h.t / 0.15; ox = (h.tx - h.x) * k; oz = (h.tz - h.z) * k; scale = 1 - k * 0.85; }
     tmpC.copy(h.base);
     const surf = h.rug ? RUG_COL : FLOOR_COL;
@@ -960,7 +1107,7 @@ function writeHairs() {
       if (lit) tmpC.lerp(WHITE, 0.1); else tmpC.multiplyScalar(h.under.under < 0.3 ? 0.07 : 0.22);
     }
     if (alpha < 1) tmpC.lerp(surf, 1 - alpha);
-    const ca = Math.cos(h.ang), sa = Math.sin(h.ang), sh = h.shape;
+    const ca = Math.cos(h.ang + rot), sa = Math.sin(h.ang + rot), sh = h.shape;
     for (let i = 0; i < segs; i++) {
       for (let j = i; j <= i + 1; j++) {
         const px = sh[j][0] * scale, pz = sh[j][1] * scale, o = v * 3;
@@ -993,7 +1140,7 @@ function renderActors(dt) {
       const rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
       const c = S.cv.getContext('2d');
       c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, 256, 512);
-      const o = { t: a.anim, walking: a.walking, back, shock: a.shock, mad: a.mad, dir: clamp((fdx * rx + fdz * rz) * 1.4, -1, 1) };
+      const o = { t: a.anim, walking: a.walking, back, shock: a.shock, mad: a.mad, brushing: a.brush > 0, dir: clamp((fdx * rx + fdz * rz) * 1.4, -1, 1) };
       if (a.kind === 'girl') { c.translate(128, 500); c.scale(2.85, 2.85); drawGirl(c, look, o); }
       else { c.translate(128, 500); c.scale(2.75, 2.75); drawMan(c, o); }
       S.tex.needsUpdate = true;
@@ -1010,9 +1157,13 @@ function renderActors(dt) {
   }
 }
 function renderHand(dt) {
-  const H = G.hand, show = PLAYABLE[G.phase];
+  const H = G.hand, show = PLAYABLE[G.phase], act = G.phase === 'act' ? G.act : null;
   R.hand.visible = !!show;
-  R.tw.visible = tool === 'tweezers'; R.vac.visible = tool === 'vacuum'; R.brm.visible = tool === 'broom';
+  R.tw.visible = !act && tool === 'tweezers'; R.vac.visible = !act && tool === 'vacuum'; R.brm.visible = !act && tool === 'broom';
+  R.hammer.visible = act === 'smash'; R.lighter.visible = act === 'fire';
+  R.lFlame.visible = act === 'fire' && input.use;
+  H.swing = Math.max(0, (H.swing || 0) - dt * 4);
+  R.hammer.rotation.x = 0.2 - Math.sin(H.swing * Math.PI) * 1.2;
   R.torch.visible = flashOn;
   H.close = Math.max(0, H.close - dt * 5);
   const open = 0.06 * (1 - H.close);
@@ -1049,9 +1200,13 @@ function updateHud() {
   crossEl.style.display = play ? '' : 'none';
   remainEl.textContent = remaining();
   timeEl.textContent = (G.cleanTime != null ? G.cleanTime : G.time).toFixed(1);
+  if (G.phase === 'act') {
+    phaseEl.textContent = ACTS[G.act].goal(G.actN); phaseEl.classList.add('warn');
+    document.querySelector('.tools').style.visibility = 'hidden';
+    useBtn.textContent = ACTS[G.act].use;
+  } else useBtn.textContent = '사용';
   const PH = { clean: G.cleanTime != null ? '✨ 다 치웠다!' : '🤫 몰래 청소 중', reveal: '😳 …!?', choice: '😶 …', keepclean: '😶 어색하게 청소 중', ending: '…' };
-  phaseEl.textContent = PH[G.phase] || '';
-  phaseEl.classList.toggle('warn', G.phase === 'reveal');
+  if (G.phase !== 'act') { phaseEl.textContent = PH[G.phase] || ''; phaseEl.classList.toggle('warn', G.phase === 'reveal'); }
   const mag = magOn || input.magHold;
   crossEl.className = (mag ? 'mag ' : '') + (aim.ok ? '' : aim.reason);
   tipEl.textContent = play && !aim.ok && aim.reason === 'far' ? '너무 멀어요' : '';
@@ -1072,6 +1227,7 @@ function showResult() {
   const total = G.spawned, left = G.hairs.filter(active).length;
   const best = +store.get('hairclean3d_best_' + look.diff) || 0;
   const dex = loadDex();
+  if (!dex.includes(G.ending)) { dex.push(G.ending); store.set('hairclean3d_dex', JSON.stringify(dex)); }
   $('resTitle').textContent = `${E.emoji} ${E.title}`;
   $('resQuote').textContent = E.desc;
   $('resRank').textContent = Object.keys(ENDINGS).map(k => dex.includes(k) ? ENDINGS[k].emoji : '❔').join(' ');
@@ -1137,6 +1293,17 @@ window.addEventListener('keyup', e => {
   if (e.code === 'KeyZ') input.magHold = false;
 });
 window.addEventListener('blur', () => { input.keys = {}; input.use = false; });
+const TOOL_ORDER = ['tweezers', 'vacuum', 'broom'];
+let wheelT = 0;
+window.addEventListener('wheel', e => {
+  if (!inPlay() || G.phase === 'act' || !document.pointerLockElement) return;
+  e.preventDefault();
+  const now = performance.now();
+  if (now - wheelT < 120 || !e.deltaY) return;
+  wheelT = now;
+  const i = TOOL_ORDER.indexOf(tool);
+  setTool(TOOL_ORDER[(i + (e.deltaY > 0 ? 1 : -1) + 3) % 3]);
+}, { passive: false });
 
 // touch
 const touchLook = new Map();
@@ -1238,9 +1405,9 @@ const sfx = (() => {
     jam() { tone(180, 0.35, 'sawtooth', 0.07, 0, 90); },
     bang() { noise(0.35, 250, 1.4); tone(70, 0.3, 'square', 0.25); },
     shock() { tone(880, 0.12, 'square', 0.08); tone(660, 0.2, 'square', 0.08, 0.12); },
-    crash() { for (let i = 0; i < 6; i++) noise(0.4, rand(150, 900), 0.9, i * 0.25); },
-    sad() { [440, 415, 392, 349].forEach((f, i) => tone(f, 0.7, 'sine', 0.08, i * 0.6)); },
-    fire() { for (let i = 0; i < 10; i++) noise(0.5, rand(800, 2500), 0.35, i * 0.4); },
+    smash() { noise(0.35, rand(150, 500), 1.1); tone(90, 0.2, 'square', 0.15); },
+    whoosh() { noise(0.6, 900, 0.6); tone(200, 0.4, 'sawtooth', 0.04, 0, 400); },
+    doorOpen() { tone(300, 0.3, 'triangle', 0.06, 0, 200); noise(0.2, 400, 0.3); },
     vac(on) {
       if (!ac || !vacGain || on === vacOn) return;
       vacOn = on; vacGain.gain.setTargetAtTime(on ? 0.22 : 0, ac.currentTime, 0.05);
@@ -1286,7 +1453,7 @@ let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (G && R && gameEl.classList.contains('active')) {
-    if (!G.over) update(dt); else { updateActors(dt); if (G.ending) tickEnding(dt); }
+    if (!G.over) update(dt); else { updateActors(dt); physicsStep(dt); flamesStep(dt); if (G.ending) tickEnding(dt); }
     writeHairs();
     renderActors(dt);
     renderHand(dt);
