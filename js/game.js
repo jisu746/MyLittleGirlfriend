@@ -19,7 +19,7 @@ const iga = n => { const c = n.charCodeAt(n.length - 1); return c >= 0xac00 && c
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const DEBUG = /[?&]debug/.test(location.search);
 // GitHub Pages caches files separately; if this script doesn't match the page, reload once with fresh files
-const BUILD = '6';
+const BUILD = '7';
 {
   const meta = document.querySelector('meta[name="build"]');
   if ((!meta || meta.content !== BUILD) && !/[?&]r=/.test(location.search)) {
@@ -814,8 +814,8 @@ function beginCleaning() {
   g.vis = false; g.walking = false; G.doorWant = 0;
   G.phase = 'clean';
   player.yaw = Math.atan2(-(0.15 - player.x), -(0.45 - player.z)); player.pitch = -0.55;
-  if (isTouch) { started = true; setPaused(false); }
-  else { $('pauseTitle').textContent = '몰래 청소 시작!'; setPaused(true); }
+  started = isTouch;
+  showHelp(true);
 }
 
 let thoughtTimer = 0;
@@ -1322,18 +1322,39 @@ function showResult() {
 const gameEl = $('screen-game'), canvasEl = $('game');
 if (isTouch) gameEl.classList.add('touch');
 function inPlay() { return gameEl.classList.contains('active') && G && !G.over && PLAYABLE[G.phase]; }
-function setPaused(p) {
-  paused = p;
-  $('pause').classList.toggle('hidden', !p || isTouch);
+// which = 'pause' (menu) or 'help' (controls)
+let pauseKind = 'pause', helpReq = false;
+function setPaused(p, which = 'pause') {
+  paused = p; pauseKind = which;
+  $('pause').classList.toggle('hidden', !(p && which === 'pause'));
+  $('help').classList.toggle('hidden', !(p && which === 'help'));
   if (p) { input.use = false; input.keys = {}; input.magHold = false; sfx.vac(false); }
 }
+function showHelp(first) {
+  $('helpTitle').textContent = first ? '몰래 청소 시작!' : '조작법';
+  $('helpGo').textContent = isTouch ? '화면을 터치하면 시작해요' : '화면을 클릭하면 시작해요';
+  if (!first) $('helpGo').textContent = isTouch ? '화면을 터치하면 계속해요' : '화면을 클릭하면 계속해요';
+  if (document.pointerLockElement) { helpReq = true; document.exitPointerLock(); }
+  else setPaused(true, 'help');
+}
+function resume() {
+  if (!inPlay()) return;
+  if (isTouch) { started = true; setPaused(false); sfx.unlock(); }
+  else canvasEl.requestPointerLock();
+}
 canvasEl.addEventListener('click', () => { if (!isTouch && inPlay() && !document.pointerLockElement) canvasEl.requestPointerLock(); });
-$('pause').addEventListener('click', e => { if (e.target.id === 'quitBtn') return; if (inPlay()) canvasEl.requestPointerLock(); });
+$('help').addEventListener('click', resume);
+$('resumeBtn').addEventListener('click', e => { e.stopPropagation(); resume(); });
+$('helpBtn').addEventListener('click', e => { e.stopPropagation(); if (inPlay()) showHelp(false); });
+$('pauseBtn').addEventListener('click', e => { e.stopPropagation(); if (!inPlay()) return; if (document.pointerLockElement) document.exitPointerLock(); else setPaused(true, 'pause'); });
+for (const id of ['helpBtn', 'pauseBtn']) $(id).addEventListener('pointerdown', e => e.stopPropagation());
+function syncMute() { $('muteBtn').textContent = sfx.muted() ? '🔇 소리 켜기' : '🔊 소리 끄기'; }
+$('muteBtn').addEventListener('click', e => { e.stopPropagation(); sfx.setMuted(!sfx.muted()); store.set('hairclean3d_mute', sfx.muted() ? '1' : ''); syncMute(); });
 document.addEventListener('pointerlockchange', () => {
   if (isTouch) return;
   const locked = document.pointerLockElement === canvasEl;
   if (locked) { started = true; setPaused(false); sfx.unlock(); }
-  else if (inPlay()) { $('pauseTitle').textContent = '일시정지'; setPaused(true); }
+  else if (inPlay()) { setPaused(true, helpReq ? 'help' : 'pause'); helpReq = false; }
 });
 document.addEventListener('mousemove', e => {
   if (isTouch || !document.pointerLockElement || paused || !inPlay()) return;
@@ -1447,18 +1468,19 @@ document.querySelectorAll('.tool').forEach(b => b.addEventListener('mousedown', 
 
 /* ================= sound ================= */
 const sfx = (() => {
-  let ac = null, vacGain = null, vacOn = false;
+  let ac = null, vacGain = null, vacOn = false, out = null, muted = false;
   function unlock() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     try {
       ac = new (window.AudioContext || window.webkitAudioContext)();
+      out = ac.createGain(); out.gain.value = muted ? 0 : 1; out.connect(ac.destination);
       const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
       let last = 0;
       for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
       const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
       const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
       vacGain = ac.createGain(); vacGain.gain.value = 0;
-      src.connect(f).connect(vacGain).connect(ac.destination); src.start();
+      src.connect(f).connect(vacGain).connect(out); src.start();
     } catch (e) { ac = null; }
   }
   function tone(freq, dur, type = 'sine', vol = 0.12, delay = 0, slide) {
@@ -1467,7 +1489,7 @@ const sfx = (() => {
     o.type = type; o.frequency.setValueAtTime(freq, t0);
     if (slide) o.frequency.exponentialRampToValueAtTime(slide, t0 + dur);
     g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+    o.connect(g).connect(out); o.start(t0); o.stop(t0 + dur + 0.02);
   }
   function noise(dur, freq, vol, delay = 0) {
     if (!ac) return;
@@ -1476,10 +1498,12 @@ const sfx = (() => {
     const s = ac.createBufferSource(); s.buffer = buf;
     const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = freq;
     const g = ac.createGain(); g.gain.value = vol;
-    s.connect(f).connect(g).connect(ac.destination); s.start(ac.currentTime + delay);
+    s.connect(f).connect(g).connect(out); s.start(ac.currentTime + delay);
   }
   return {
     unlock,
+    muted: () => muted,
+    setMuted(m) { muted = m; if (out) out.gain.value = m ? 0 : 1; },
     pick() { tone(900, 0.08, 'triangle', 0.14); },
     miss() { tone(300, 0.05, 'sine', 0.04); },
     click() { tone(1400, 0.03, 'square', 0.04); },
@@ -1551,6 +1575,7 @@ if (DEBUG) window.__game = {
   step(sec) { for (let t = 0; t < sec && !G.over; t += 1 / 30) update(1 / 30); },
   get G() { return G; }, player, input, setTool, toggle, get aim() { return aim; }, setPaused, nextLine, finishAct, interact() { input.interact = true; }, get R() { return R; }
 };
+sfx.setMuted(!!store.get('hairclean3d_mute')); syncMute();
 buildChips(); showBest();
 requestAnimationFrame(loop);
 })();
