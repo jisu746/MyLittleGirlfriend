@@ -19,7 +19,7 @@ const iga = n => { const c = n.charCodeAt(n.length - 1); return c >= 0xac00 && c
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const DEBUG = /[?&]debug/.test(location.search);
 // GitHub Pages caches files separately; if this script doesn't match the page, reload once with fresh files
-const BUILD = '4';
+const BUILD = '5';
 {
   const meta = document.querySelector('meta[name="build"]');
   if ((!meta || meta.content !== BUILD) && !/[?&]r=/.test(location.search)) {
@@ -94,7 +94,10 @@ function drawPreview(t) {
 const RX0 = -3, RX1 = 3, RZ0 = -2.5, RZ1 = 2.5, RH = 2.6;
 const RUG = { cx: 0.15, cz: 0.45, rx: 1.45, rz: 0.95 };
 const DOOR_IN = { x: 2.35, z: -2.15 };
-const inRug = (x, z) => ((x - RUG.cx) / RUG.rx) ** 2 + ((z - RUG.cz) / RUG.rz) ** 2 < 0.97;
+const inRugArea = (x, z) => ((x - RUG.cx) / RUG.rx) ** 2 + ((z - RUG.cz) / RUG.rz) ** 2 < 0.97;
+let rugDown = true;
+const inRug = (x, z) => rugDown && inRugArea(x, z);
+const PLANT_HOME = { x0: -2.82, x1: -2.48, z0: 0.38, z1: 0.72 }, PLANT_DZ = -0.45;
 // footprint, clearance under (0 = solid to floor), LOS boxes [x0,x1,y0,y1,z0,z1]
 const FURN = [
   { id: 'bed', name: '침대', x0: -3, x1: -1.45, z0: -2.5, z1: -0.45, under: 0.22, los: [[-3, -1.45, 0.22, 0.58, -2.5, -0.45], [-3, -1.45, 0, 1.0, -2.5, -2.4]] },
@@ -254,8 +257,14 @@ function init3D() {
   const rug = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.014, 48),
     [lam('#e79fb4'), new THREE.MeshLambertMaterial({ map: rugTexture() }), lam('#e79fb4')]);
   rug.scale.set(RUG.rx, 1, RUG.rz); rug.position.set(RUG.cx, 0.007, RUG.cz);
-  rug.receiveShadow = true; rug.userData.ground = true;
+  rug.receiveShadow = true; rug.userData.ground = true; rug.userData.prop = 'rug';
   scene.add(rug); aimTargets.push(rug);
+  // the same rug, rolled up against its right edge
+  const rugRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, RUG.rz * 1.9, 20),
+    [new THREE.MeshLambertMaterial({ map: rugTexture() }), lam('#e79fb4'), lam('#e79fb4')]);
+  rugRoll.rotation.x = Math.PI / 2; rugRoll.position.set(RUG.cx + RUG.rx + 0.06, 0.075, RUG.cz);
+  rugRoll.castShadow = true; rugRoll.visible = false; rugRoll.userData.prop = 'rug';
+  scene.add(rugRoll);
 
   // furniture
   collect = true;
@@ -294,12 +303,13 @@ function init3D() {
   mframe.scale.y = 1.25; mframe.position.set(-0.75, 1.3, -2.48); scene.add(mframe);
   // plant
   const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.32, 16), lam('#d9825b'));
-  pot.position.set(-2.65, 0.16, 0.55); pot.castShadow = true; scene.add(pot); aimTargets.push(pot); furnMeshes.push(pot);
+  pot.position.set(-2.65, 0.16, 0.55); pot.castShadow = true; pot.userData.prop = 'plant'; scene.add(pot); aimTargets.push(pot); furnMeshes.push(pot);
+  const plantParts = [pot];
   for (let i = 0; i < 6; i++) {
     const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), lam('#5fb37a'));
     const a = i / 6 * Math.PI * 2;
     leaf.scale.set(0.6, 1.5, 0.6); leaf.position.set(-2.65 + Math.cos(a) * 0.09, 0.5, 0.55 + Math.sin(a) * 0.09);
-    leaf.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); leaf.castShadow = true; scene.add(leaf); furnMeshes.push(leaf);
+    leaf.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5); leaf.castShadow = true; scene.add(leaf); furnMeshes.push(leaf); plantParts.push(leaf);
   }
   collect = false;
   // window
@@ -406,7 +416,7 @@ function init3D() {
   const raycaster = new THREE.Raycaster();
   for (const m of furnMeshes) m.userData.home = { p: m.position.clone(), r: m.rotation.clone() };
   R = { renderer, scene, camera, aimTargets, raycaster, flash, doorPivot, hairGeo, hairPos, hairCol, MAXH, MAXV,
-    sprites, furnMeshes, flameTex, fireLight, flames: [], hand, hammer, lighter, lFlame, door, doorDark, puddle: null, tw, twA, twB, vac, brm, bristle, torch };
+    sprites, furnMeshes, rug, rugRoll, plantParts, flameTex, fireLight, flames: [], hand, hammer, lighter, lFlame, door, doorDark, puddle: null, tw, twA, twB, vac, brm, bristle, torch };
   resize();
 }
 
@@ -440,8 +450,10 @@ function newGame() {
     rugWarned: false, farWarnT: 0, picks: 0, sucks: 0, prevAim: null, sweepSfxT: 0,
     curly: null, curlyFound: false, revealT: null, cleanTime: null,
     revealQ: [], qT: 0, qWait: 0, qHinted: false, hintCD: 0, keepLineT: 6, manLeaveT: 6,
-    endT: 0, fx: [], hand: { close: 0, bob: 0, sweep: 0 }
+    endT: 0, fx: [], hand: { close: 0, bob: 0, sweep: 0 },
+    rugK: 0, rugWant: 0, plantK: 0, plantWant: 0, interact: null, propTipT: 0
   };
+  resetProps();
   Object.assign(player, { x: -0.4, z: 1.0, eye: 0.85, prone: false, pitch: -0.12 });
   magOn = false; flashOn = false; tool = 'tweezers'; syncToolButtons();
   // morning's hair, already all over the floor
@@ -452,6 +464,14 @@ function newGame() {
     else { do { x = rand(RX0 + 0.08, RX1 - 0.08); z = rand(RZ0 + 0.08, RZ1 - 0.08); } while (furnAt(x, z, 0.02)); }
     addHair(x, z, { fine: Math.random() < 0.3 });
   }
+  // a few more hiding under the rug and the flower pot
+  const nRug = { easy: 3, normal: 5, hard: 7 }[look.diff];
+  for (let i = 0; i < nRug; i++) {
+    let x, z;
+    do { x = rand(RUG.cx - RUG.rx * 0.85, RUG.cx + RUG.rx * 0.85); z = rand(RUG.cz - RUG.rz * 0.85, RUG.cz + RUG.rz * 0.85); } while (!inRugArea(x, z) || furnAt(x, z, 0.03));
+    hideHair(addHair(x, z, { fine: Math.random() < 0.3 }), 'rug');
+  }
+  for (let i = 0; i < 2; i++) hideHair(addHair(rand(PLANT_HOME.x0 + 0.06, PLANT_HOME.x1 - 0.06), rand(PLANT_HOME.z0 + 0.06, PLANT_HOME.z1 - 0.06)), 'plant');
   // exactly one mysterious curly hair, out in the open
   let cx, cz;
   do { cx = rand(-2.4, 2.4); cz = rand(-1.9, 2.0); } while (furnAt(cx, cz, 0.15) || Math.hypot(cx - player.x, cz - player.z) < 1.2);
@@ -468,20 +488,20 @@ function addHair(x, z, o = {}) {
   if (G.hairs.length >= R.MAXH) return null;
   const curly = !!o.curly, fine = !curly && !!o.fine;
   const [a, b] = HAIR_LEN[look.style];
-  const len = curly ? 0.13 : fine ? rand(0.05, 0.1) : rand(a, b);
+  const len = curly ? 0.11 : fine ? rand(0.05, 0.1) : rand(a, b);
   const wave = look.style === 'wave' && !fine && !curly;
   const h = {
     x: clamp(x, RX0 + 0.04, RX1 - 0.04), z: clamp(z, RZ0 + 0.04, RZ1 - 0.04), ang: rand(0, Math.PI), len, curly, fine,
-    shape: [], pts: [], state: o.fall ? 'fall' : 'floor', t: 0, dur: rand(0.7, 1.0), sx: o.sx, sy: o.sy, sz: o.sz, base: new THREE.Color(curly ? '#0e0907' : look.hair),
+    shape: [], pts: [], state: o.fall ? 'fall' : 'floor', t: 0, dur: rand(0.7, 1.0), sx: o.sx, sy: o.sy, sz: o.sz, base: new THREE.Color(curly ? '#2a1d15' : look.hair),
     rug: false, under: null, tx: 0, tz: 0, y: 0, hintT: 0
   };
   if (!curly) h.base.offsetHSL(0, 0, rand(-0.04, 0.05) + (fine ? 0.08 : 0));
   const L = len / 2;
   if (curly) {
-    // a coil: clearly loopy even from a step away
-    for (let i = 0; i <= 64; i++) {
-      const k = i / 64, th = k * Math.PI * 2 * 5;
-      h.shape.push([-L + len * k + Math.cos(th) * 0.016 - 0.016, Math.sin(th) * 0.018 + Math.sin(k * 3) * 0.01]);
+    // a loose, fine coil: curly up close, easy to miss from afar
+    for (let i = 0; i <= 44; i++) {
+      const k = i / 44, th = k * Math.PI * 2 * 3.5;
+      h.shape.push([-L + len * k + Math.cos(th) * 0.007 - 0.007, Math.sin(th) * 0.008 + Math.sin(k * 3) * 0.008]);
     }
   } else {
     const k1 = wave ? len * rand(0.18, 0.28) * (Math.random() < 0.5 ? 1 : -1) : rand(-0.18, 0.18) * len;
@@ -512,7 +532,8 @@ function hairDist(h, x, z) {
   for (const [px, pz] of h.pts) { const d = (px - x) ** 2 + (pz - z) ** 2; if (d < m) m = d; }
   return Math.sqrt(m);
 }
-const active = h => h.state === 'floor' || h.state === 'fall';
+const active = h => h.state === 'floor' || h.state === 'fall' || h.state === 'hidden';
+function hideHair(h, cover) { if (h) { h.state = 'hidden'; h.cover = cover; } }
 const remaining = () => { let n = 0; for (const h of G.hairs) if (active(h)) n++; return n; };
 
 /* ================= aim & tools ================= */
@@ -523,8 +544,9 @@ function updateAim() {
   R.raycaster.setFromCamera(center, R.camera);
   const hit = R.raycaster.intersectObjects(R.aimTargets, false)[0];
   if (!hit) { aim = { ok: false, reason: 'none' }; return; }
-  if (!hit.object.userData.ground) { aim = { ok: false, reason: 'blocked', dist: hit.distance }; return; }
-  aim = { ok: hit.distance <= REACH, reason: hit.distance <= REACH ? '' : 'far', x: hit.point.x, z: hit.point.z, dist: hit.distance };
+  const prop = hit.object.userData.prop && hit.distance <= REACH + 0.2 ? hit.object.userData.prop : null;
+  if (!hit.object.userData.ground) { aim = { ok: false, reason: 'blocked', dist: hit.distance, prop }; return; }
+  aim = { ok: hit.distance <= REACH, reason: hit.distance <= REACH ? '' : 'far', x: hit.point.x, z: hit.point.z, dist: hit.distance, prop };
 }
 function useTweezers() {
   G.hand.close = 1;
@@ -621,12 +643,76 @@ function broomStep(dt) {
   G.sweepSfxT -= dt;
   if (moved && G.sweepSfxT <= 0 && dl > 0.01) { sfx.sweep(); G.sweepSfxT = 0.18; }
 }
+/* ---- rug & flower pot: lift them to find what's underneath ---- */
+function resetProps() {
+  rugDown = true;
+  Object.assign(FURN.find(f => f.id === 'plant'), PLANT_HOME);
+  setPlantK(0); setRugK(0);
+}
+function setRugK(k) {
+  const { rug, rugRoll } = R;
+  rug.scale.x = RUG.rx * Math.max(0.001, 1 - k); rug.position.x = RUG.cx + RUG.rx * k;
+  rug.visible = k < 0.98;
+  rugRoll.visible = k > 0.05; rugRoll.scale.set(0.3 + 0.7 * k, 1, 0.3 + 0.7 * k);
+  rugRoll.position.y = 0.075 * (0.3 + 0.7 * k);
+  const i = R.aimTargets.indexOf(rug), j = R.aimTargets.indexOf(rugRoll);
+  if (rug.visible && i < 0) R.aimTargets.push(rug); else if (!rug.visible && i >= 0) R.aimTargets.splice(i, 1);
+  if (!rug.visible && j < 0) R.aimTargets.push(rugRoll); else if (rug.visible && j >= 0) R.aimTargets.splice(R.aimTargets.indexOf(rugRoll), 1);
+}
+function setPlantK(k) {
+  for (const m of R.plantParts) { const h = m.userData.home; m.position.set(h.p.x, h.p.y, h.p.z + PLANT_DZ * k); }
+}
+function replaceAll() { for (const h of G.hairs) if (h.state !== 'gone') placeHair(h); }
+function interact() {
+  const p = G.interact;
+  if (!p) return;
+  if (p === 'rug') {
+    if (G.rugWant === 0) {
+      G.rugWant = 1; rugDown = false;
+      for (const h of G.hairs) if (h.state === 'hidden' && h.cover === 'rug') h.state = 'floor';
+      replaceAll(); sfx.whoosh();
+      const n = G.hairs.filter(h => h.state === 'floor' && h.cover === 'rug').length;
+      thought(n ? '(카펫 밑에도… 엄청 들어가 있었네.)' : '(카펫 밑은 깨끗하네.)', 2.4);
+    } else { G.rugWant = 0; sfx.whoosh(); }
+  } else if (p === 'plant') {
+    const f = FURN.find(f => f.id === 'plant');
+    const dz = (G.plantWant ? 0 : PLANT_DZ) - (G.plantWant ? PLANT_DZ : 0);
+    if (Math.hypot(player.x - (f.x0 + f.x1) / 2, player.z - ((f.z0 + f.z1) / 2 + dz)) < 0.45) { toast('비켜서야 화분을 옮길 수 있어요'); return; }
+    G.plantWant = G.plantWant ? 0 : 1;
+    const z0 = PLANT_HOME.z0 + PLANT_DZ * G.plantWant;
+    f.z0 = z0; f.z1 = z0 + (PLANT_HOME.z1 - PLANT_HOME.z0);
+    f.los[0][4] = f.z0; f.los[0][5] = f.z1;
+    sfx.click();
+    if (G.plantWant) {
+      let n = 0;
+      for (const h of G.hairs) if (h.state === 'hidden' && h.cover === 'plant') { h.state = 'floor'; n++; }
+      thought(n ? '(화분 밑에 이게 왜 있어…)' : '(화분 밑은 깨끗하네.)', 2.2);
+    } else {
+      // whatever's still lying there ends up under the pot again
+      for (const h of G.hairs) if (h.state === 'floor' && h.x > f.x0 && h.x < f.x1 && h.z > f.z0 && h.z < f.z1) hideHair(h, 'plant');
+    }
+  }
+}
+function propsStep(dt) {
+  const k = Math.min(1, dt * 3);
+  if (Math.abs(G.rugK - G.rugWant) > 0.001) {
+    G.rugK = Math.abs(G.rugK - G.rugWant) < 0.01 ? G.rugWant : lerp(G.rugK, G.rugWant, k);
+    setRugK(G.rugK);
+    if (G.rugK === 0 && !rugDown) { rugDown = true; replaceAll(); }
+  }
+  if (Math.abs(G.plantK - G.plantWant) > 0.001) {
+    G.plantK = Math.abs(G.plantK - G.plantWant) < 0.01 ? G.plantWant : lerp(G.plantK, G.plantWant, k);
+    setPlantK(G.plantK);
+  }
+}
 function useHint() {
   if (!G || !PLAYABLE[G.phase] || G.hintCD > 0) return;
   const left = G.hairs.filter(active);
   if (!left.length) return;
   const h = pick(left);
-  h.hintT = 3.5; G.hintCD = 20;
+  G.hintCD = 20; sfx.click();
+  if (h.state === 'hidden') { toast(h.cover === 'rug' ? `💡 카펫 밑도 한번 들춰볼까? (${isTouch ? '✋' : 'E'})` : `💡 화분 밑에도 있을지 몰라 (${isTouch ? '✋' : 'E'})`); return; }
+  h.hintT = 3.5;
   toast(h.under ? `💡 ${h.under.name} 밑을 손전등으로 비춰봐!` : h.rug ? '💡 카펫 위에서 반짝이는 걸 찾아봐!' : '💡 바닥에서 반짝이는 걸 찾아봐!');
   sfx.click();
 }
@@ -975,6 +1061,8 @@ function update(dt) {
     updateAim();
     const pressed = input.use && !input.usePrev;
     input.usePrev = input.use;
+    G.interact = ph !== 'act' && aim.prop && (G.rugK === G.rugWant) && (G.plantK === G.plantWant) ? aim.prop : null;
+    if (input.interact) { input.interact = false; interact(); }
     if (ph === 'act') tickAct(dt, pressed);
     else {
       if (pressed && tool === 'tweezers') useTweezers();
@@ -982,7 +1070,7 @@ function update(dt) {
       broomStep(dt);
     }
   } else { sfx.vac(false); movePlayer(0); }
-  physicsStep(dt); flamesStep(dt);
+  physicsStep(dt); flamesStep(dt); if (ph !== 'act' && ph !== 'ending') propsStep(dt);
   if (ph === 'story') storyTick(dt);
 
   updateActors(dt);
@@ -1084,7 +1172,7 @@ function writeHairs() {
   const cp = R.camera.position;
   let v = 0;
   for (const h of G.hairs) {
-    if (h.state === 'gone') continue;
+    if (h.state === 'gone' || h.state === 'hidden') continue;
     const segs = h.shape.length - 1;
     if (v + segs * 2 > MAXV) break;
     let ox = 0, oy = h.y, oz = 0, scale = 1, alpha = 1, rot = 0;
@@ -1096,7 +1184,7 @@ function writeHairs() {
     else if (h.state === 'suck') { const k = h.t / 0.15; ox = (h.tx - h.x) * k; oz = (h.tz - h.z) * k; scale = 1 - k * 0.85; }
     tmpC.copy(h.base);
     const surf = h.rug ? RUG_COL : FLOOR_COL;
-    if (!mag) { if (h.fine) tmpC.lerp(surf, 0.55); else if (!h.curly) tmpC.lerp(surf, 0.12); }
+    if (!mag) tmpC.lerp(surf, h.fine ? 0.55 : h.curly ? 0.3 : 0.12);
     if (h.hintT > 0 && h.state === 'floor') tmpC.copy(Math.sin(h.hintT * 12) > 0 ? HINT_C : WHITE);
     else if (h.under && h.state === 'floor') {
       let lit = false;
@@ -1209,7 +1297,10 @@ function updateHud() {
   if (G.phase !== 'act') { phaseEl.textContent = PH[G.phase] || ''; phaseEl.classList.toggle('warn', G.phase === 'reveal'); }
   const mag = magOn || input.magHold;
   crossEl.className = (mag ? 'mag ' : '') + (aim.ok ? '' : aim.reason);
-  tipEl.textContent = play && !aim.ok && aim.reason === 'far' ? '너무 멀어요' : '';
+  const PROP_TXT = { rug: G.rugWant ? '카펫 다시 깔기' : '카펫 걷어보기', plant: G.plantWant ? '화분 제자리에' : '화분 옮겨보기' };
+  tipEl.textContent = play && G.interact ? (isTouch ? '✋ ' : '[E] ') + PROP_TXT[G.interact] : play && !aim.ok && aim.reason === 'far' ? '너무 멀어요' : '';
+  actBtn.style.display = isTouch && play && G.interact ? 'block' : 'none';
+  if (G.interact) actBtn.textContent = '✋';
   const bar = $('tangleBar');
   bar.style.width = (G.tangle * 100) + '%';
   bar.style.background = G.tangled ? '#e23b3b' : G.tangle > 0.7 ? '#ffb347' : '#7bd389';
@@ -1286,6 +1377,7 @@ window.addEventListener('keydown', e => {
   else if (e.code === 'KeyF') toggle('flash');
   else if (e.code === 'KeyC' || e.code === 'ControlLeft') toggle('prone');
   else if (e.code === 'KeyH') useHint();
+  else if (e.code === 'KeyE' && inPlay() && !paused) input.interact = true;
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 window.addEventListener('keyup', e => {
@@ -1333,7 +1425,8 @@ joy.addEventListener('pointerdown', e => { joyId = e.pointerId; joy.setPointerCa
 joy.addEventListener('pointermove', e => { if (e.pointerId === joyId) joyMove(e); });
 const joyEnd = e => { if (e.pointerId !== joyId) return; joyId = null; input.joyX = input.joyY = 0; knobEl.style.transform = ''; };
 joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
-const useBtn = $('useBtn');
+const useBtn = $('useBtn'), actBtn = $('actBtn');
+actBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); input.interact = true; sfx.unlock(); });
 useBtn.addEventListener('pointerdown', e => { e.preventDefault(); useBtn.setPointerCapture(e.pointerId); input.use = true; useBtn.classList.add('down'); sfx.unlock(); });
 const useEnd = () => { input.use = false; useBtn.classList.remove('down'); };
 useBtn.addEventListener('pointerup', useEnd); useBtn.addEventListener('pointercancel', useEnd);
@@ -1466,7 +1559,7 @@ function loop(now) {
 
 if (DEBUG) window.__game = {
   step(sec) { for (let t = 0; t < sec && !G.over; t += 1 / 30) update(1 / 30); },
-  get G() { return G; }, player, input, setTool, toggle, get aim() { return aim; }, setPaused, nextLine, chooseEnding, get R() { return R; }
+  get G() { return G; }, player, input, setTool, toggle, get aim() { return aim; }, setPaused, nextLine, chooseEnding, interact() { input.interact = true; }, get R() { return R; }
 };
 buildChips(); showBest();
 requestAnimationFrame(loop);
