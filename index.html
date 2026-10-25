@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>여자친구 머리카락 청소하기</title>
+<meta name="description" content="여자친구가 흘리고 다니는 머리카락을 핀셋, 청소기, 돋보기로 전부 치워라!">
+<meta property="og:title" content="여자친구 머리카락 청소하기 🧹">
+<meta property="og:description" content="여자친구가 흘리고 다니는 머리카락을 전부 치워라!">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>">
+<style>
+:root{
+  --bg:#fff4f7; --card:#ffffff; --ink:#4a3640; --sub:#9a7f8a; --pink:#ff7aa2; --pink-d:#e9557f;
+  --line:#f3d5df; --chip:#fff0f5;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:'Jua',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+body{overflow-x:hidden}
+button{font-family:inherit;cursor:pointer}
+.screen{display:none;min-height:100%;padding:16px;flex-direction:column;align-items:center}
+.screen.active{display:flex}
+h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:center;color:var(--pink-d)}
+.sub{margin:0 0 14px;color:var(--sub);text-align:center}
+
+/* customize */
+.custom-wrap{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:flex-start;max-width:860px;width:100%}
+.preview-card{background:var(--card);border-radius:24px;padding:12px;box-shadow:0 6px 24px rgba(233,85,127,.12);text-align:center}
+#preview{width:240px;height:280px;display:block}
+.options{background:var(--card);border-radius:24px;padding:16px 18px;box-shadow:0 6px 24px rgba(233,85,127,.12);
+  flex:1 1 320px;max-width:520px}
+.opt{margin-bottom:12px}
+.opt>span{display:block;font-size:15px;color:var(--sub);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:2px solid var(--line);background:var(--chip);border-radius:999px;padding:6px 12px;font-size:15px;color:var(--ink)}
+.chip.on{border-color:var(--pink);background:var(--pink);color:#fff}
+.chip.sw{width:34px;height:34px;padding:0;border-width:3px}
+.chip.sw.on{border-color:var(--ink);box-shadow:0 0 0 2px #fff inset}
+.name-row input{font-family:inherit;font-size:17px;padding:8px 12px;border-radius:14px;border:2px solid var(--line);
+  width:100%;color:var(--ink);background:#fffafb;outline:none}
+.name-row input:focus{border-color:var(--pink)}
+.big{margin-top:18px;background:var(--pink);color:#fff;border:0;border-radius:999px;font-size:24px;padding:14px 46px;
+  box-shadow:0 6px 0 var(--pink-d);transition:transform .08s}
+.big:active{transform:translateY(4px);box-shadow:0 2px 0 var(--pink-d)}
+.best{color:var(--sub);font-size:14px;min-height:1em}
+.howto{max-width:520px;color:var(--sub);font-size:14px;line-height:1.6;text-align:center;margin-top:10px}
+
+/* game */
+#screen-game{padding:10px 12px;justify-content:center}
+.hud{width:100%;max-width:var(--stageW);display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font-size:clamp(14px,3.6vw,19px);margin-bottom:8px}
+.hud .pill{background:var(--card);border-radius:999px;padding:6px 14px;box-shadow:0 3px 12px rgba(233,85,127,.12);white-space:nowrap}
+.hud b{color:var(--pink-d);font-weight:400}
+#phaseTxt.warn{color:#e23b3b}
+.stage{position:relative;width:100%;max-width:var(--stageW);aspect-ratio:4/3;border-radius:18px;overflow:hidden;
+  box-shadow:0 8px 30px rgba(120,60,80,.18);background:#d9a874}
+#game{width:100%;height:100%;display:block;touch-action:none;cursor:none}
+#toast{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(74,54,64,.88);color:#fff;
+  padding:8px 16px;border-radius:999px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap}
+#toast.show{opacity:1}
+.tools{display:flex;gap:8px;margin-top:10px;width:100%;max-width:var(--stageW);justify-content:center}
+.tool{flex:1 1 0;max-width:160px;background:var(--card);border:3px solid var(--line);border-radius:18px;padding:8px 4px 6px;
+  color:var(--ink);font-size:15px;display:flex;flex-direction:column;align-items:center;gap:2px;position:relative}
+.tool svg{width:34px;height:34px}
+.tool.on{border-color:var(--pink);background:#fff0f5}
+.tool .key{position:absolute;top:4px;left:8px;font-size:11px;color:var(--sub)}
+.gauge{width:70%;height:5px;border-radius:3px;background:#f1e3e8;overflow:hidden}
+.gauge i{display:block;height:100%;width:0;background:#7bd389}
+.tool.mute{flex:0 0 56px}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(74,54,64,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.modal.hidden{display:none}
+.modal .box{background:var(--card);border-radius:26px;padding:22px 22px 18px;max-width:380px;width:100%;text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,.2);animation:pop .3s ease}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.box h2{margin:0 0 6px;font-weight:400;font-size:28px;color:var(--pink-d)}
+.box .quote{color:var(--sub);margin:0 0 12px}
+.box .rank{font-size:24px;margin:6px 0 10px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.stats div{background:var(--chip);border-radius:14px;padding:8px}
+.stats small{display:block;color:var(--sub);font-size:12px}
+.stats b{font-weight:400;font-size:20px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btns button{border:0;border-radius:999px;padding:10px 16px;font-size:16px;background:var(--chip);color:var(--ink)}
+.btns button.primary{background:var(--pink);color:#fff}
+</style>
+</head>
+<body>
+
+<section id="screen-custom" class="screen active">
+  <h1>여자친구 머리카락 청소하기</h1>
+  <p class="sub">오늘도 바닥에 머리카락이… 🧹</p>
+  <div class="custom-wrap">
+    <div class="preview-card"><canvas id="preview" width="480" height="560"></canvas></div>
+    <div class="options">
+      <div class="opt name-row"><span>여자친구 이름</span><input id="gfName" maxlength="8" value="여친"></div>
+      <div class="opt"><span>헤어스타일</span><div class="chips" data-key="style"></div></div>
+      <div class="opt"><span>머리색</span><div class="chips" data-key="hair"></div></div>
+      <div class="opt"><span>피부톤</span><div class="chips" data-key="skin"></div></div>
+      <div class="opt"><span>옷 색깔</span><div class="chips" data-key="cloth"></div></div>
+      <div class="opt"><span>오늘 빠지는 양</span><div class="chips" data-key="diff"></div></div>
+    </div>
+  </div>
+  <button id="startBtn" class="big">청소 시작!</button>
+  <p class="best" id="bestTxt"></p>
+  <p class="howto">여자친구가 방을 돌아다니며 머리카락을 흘려요. 외출한 사이에 돌아오기 전까지 <b>한 가닥도 남김없이</b> 치우세요!<br>
+  🥢 핀셋: 한 가닥씩 콕 · 🌀 청소기: 꾹 눌러 쓸어담기 (카펫 위는 안 됨, 과열 주의) · 🔍 돋보기: 잘 안 보이는 잔머리 찾기</p>
+</section>
+
+<section id="screen-game" class="screen">
+  <div class="hud">
+    <div class="pill">남은 머리카락 <b id="remainTxt">0</b></div>
+    <div class="pill" id="phaseTxt">…</div>
+    <div class="pill">⏱ <b id="timeTxt">0.0</b>초</div>
+  </div>
+  <div class="stage"><canvas id="game"></canvas><div id="toast"></div></div>
+  <div class="tools">
+    <button class="tool on" data-tool="tweezers"><span class="key">1</span>
+      <svg viewBox="0 0 40 40"><path d="M8 34 L30 6" stroke="#9aa3b5" stroke-width="4" stroke-linecap="round"/><path d="M12 35 L33 9" stroke="#c6ccd8" stroke-width="4" stroke-linecap="round"/><circle cx="31" cy="7" r="3" fill="#7d8597"/></svg>
+      핀셋</button>
+    <button class="tool" data-tool="vacuum"><span class="key">2</span>
+      <svg viewBox="0 0 40 40"><path d="M30 4 Q34 20 22 28" stroke="#8a8fa3" stroke-width="4" fill="none" stroke-linecap="round"/><rect x="6" y="27" width="24" height="8" rx="3" fill="#ff7aa2"/><rect x="6" y="33" width="24" height="3" rx="1.5" fill="#4a3640"/></svg>
+      청소기<div class="gauge"><i id="heatBar"></i></div></button>
+    <button class="tool" data-tool="magnifier"><span class="key">3</span>
+      <svg viewBox="0 0 40 40"><circle cx="16" cy="16" r="10" fill="#dff1fa" stroke="#c58b4a" stroke-width="4"/><path d="M24 24 L35 35" stroke="#8b5a2b" stroke-width="6" stroke-linecap="round"/></svg>
+      돋보기 <small id="magState">OFF</small></button>
+    <button class="tool mute" id="muteBtn" aria-label="소리">🔊</button>
+  </div>
+</section>
+
+<div id="result" class="modal hidden">
+  <div class="box">
+    <h2 id="resTitle"></h2>
+    <p class="quote" id="resQuote"></p>
+    <div class="rank" id="resRank"></div>
+    <div class="stats">
+      <div><small>치운 머리카락</small><b id="resCount"></b></div>
+      <div><small>걸린 시간</small><b id="resTime"></b></div>
+      <div><small>핀셋 / 청소기</small><b id="resTools"></b></div>
+      <div><small>최고 기록</small><b id="resBest"></b></div>
+    </div>
+    <div class="btns">
+      <button class="primary" id="againBtn">다시 하기</button>
+      <button id="customBtn">꾸미기</button>
+      <button id="shareBtn">자랑하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- utils ---------- */
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const pick = arr => arr[(Math.random() * arr.length) | 0];
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function shade(hex, amt) { // amt -1..1 (neg = darker)
+  const [r, g, b] = hexToRgb(hex);
+  const f = amt < 0 ? c => c * (1 + amt) : c => c + (255 - c) * amt;
+  return `rgb(${f(r) | 0},${f(g) | 0},${f(b) | 0})`;
+}
+function seeded(seed) { return () => (seed = (seed * 16807) % 2147483647, (seed - 1) / 2147483646); }
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+/* ---------- options ---------- */
+const OPTIONS = {
+  style: [['long', '긴 생머리'], ['wave', '웨이브'], ['bob', '단발'], ['pony', '포니테일'], ['twin', '트윈테일']],
+  hair: [['#211b1d', '흑발'], ['#5b3a22', '브라운'], ['#e3c06b', '금발'], ['#f2a1bf', '핑크'], ['#a9adb8', '애쉬'], ['#b2392f', '레드']],
+  skin: [['#ffe3d1'], ['#f6cba8'], ['#dda37c'], ['#a9714f']],
+  cloth: [['#ff8fb1'], ['#8ec5ff'], ['#8fe3c8'], ['#b9a2ff'], ['#ffd66b'], ['#3d3b4f']],
+  diff: [['easy', '조금'], ['normal', '보통'], ['hard', '폭탄']]
+};
+const DIFF = { easy: { n: 70, solo: 30 }, normal: { n: 130, solo: 40 }, hard: { n: 220, solo: 55 } };
+const HAIR_LEN = { long: [40, 66], wave: [34, 56], bob: [16, 28], pony: [30, 52], twin: [30, 52] };
+
+const look = { style: 'long', hair: '#211b1d', skin: '#ffe3d1', cloth: '#ff8fb1', diff: 'normal', name: '여친' };
+try { Object.assign(look, JSON.parse(store.get('hairclean_look') || '{}')); } catch (e) {}
+
+/* ---------- girl drawing ---------- */
+function drawGirl(c, x, y, s, L, t, o = {}) {
+  const walking = !!o.walking, dir = o.dir || 0;
+  const ph = t * 11;
+  const bob = walking ? -Math.abs(Math.sin(ph)) * 3 : Math.sin(t * 2) * 0.8;
+  const sway = walking ? Math.sin(ph) * 3 : Math.sin(t * 1.5) * 1.2;
+  const hair = L.hair, hairD = shade(hair, -0.28), skin = L.skin, skinD = shade(skin, -0.12);
+  c.save();
+  c.translate(x, y); c.scale(s, s);
+  c.globalAlpha = o.alpha == null ? 1 : o.alpha;
+  // shadow
+  c.fillStyle = 'rgba(60,30,20,.18)';
+  c.beginPath(); c.ellipse(0, 0, 22, 6, 0, 0, Math.PI * 2); c.fill();
+  c.translate(0, bob);
+  const fx = dir * 3.5;
+
+  // back hair
+  c.fillStyle = hairD;
+  backHair(c, L.style, sway, hair, hairD, L.cloth);
+
+  // legs
+  const lsw = walking ? Math.sin(ph) : 0;
+  const legs = [[-8, Math.max(0, lsw) * 4], [2, Math.max(0, -lsw) * 4]];
+  for (const [lx, lift] of legs) {
+    c.fillStyle = skin; c.fillRect(lx, -28, 6, 25 - lift);
+    c.fillStyle = '#5a3b4a';
+    c.beginPath(); c.ellipse(lx + 3, -3 - lift, 5, 3.2, 0, 0, Math.PI * 2); c.fill();
+  }
+  // arms
+  c.strokeStyle = skin; c.lineWidth = 5; c.lineCap = 'round';
+  const asw = walking ? Math.sin(ph) * 6 : 0;
+  c.beginPath(); c.moveTo(-10, -57); c.lineTo(-18 - asw * 0.3, -36 + asw * 0.2); c.stroke();
+  if (o.brushing) {
+    const bt = Math.sin(t * 14) * 4;
+    c.beginPath(); c.moveTo(10, -57); c.lineTo(22, -78 + bt); c.stroke();
+    c.save(); c.translate(22, -82 + bt); c.rotate(-0.6);
+    c.fillStyle = '#ff9ec0'; c.fillRect(-3, -12, 6, 16);
+    c.fillStyle = '#fff'; for (let i = 0; i < 4; i++) c.fillRect(-6, -12 + i * 3, 3, 1.4);
+    c.restore();
+  } else {
+    c.beginPath(); c.moveTo(10, -57); c.lineTo(18 + asw * 0.3, -36 - asw * 0.2); c.stroke();
+  }
+  // dress
+  c.fillStyle = L.cloth;
+  c.beginPath(); c.moveTo(-11, -63); c.lineTo(11, -63); c.lineTo(21, -24);
+  c.quadraticCurveTo(0, -19, -21, -24); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.75)';
+  c.beginPath(); c.moveTo(-7, -63); c.lineTo(0, -56); c.lineTo(7, -63); c.closePath(); c.fill();
+  c.fillStyle = shade(L.cloth, -0.15); c.fillRect(-12, -46, 24, 3);
+  // neck + head
+  c.fillStyle = skinD; c.fillRect(-3, -68, 6, 6);
+  c.fillStyle = skin;
+  c.beginPath(); c.arc(fx * 0.4, -86, 22, 0, Math.PI * 2); c.fill();
+  // face
+  const blink = (t % 3.7) < 0.12;
+  c.fillStyle = '#2b2030'; c.strokeStyle = '#2b2030'; c.lineWidth = 1.6;
+  for (const ex of [-8, 8]) {
+    if (blink) { c.beginPath(); c.moveTo(fx + ex - 3, -81); c.lineTo(fx + ex + 3, -81); c.stroke(); }
+    else {
+      c.fillStyle = '#2b2030'; c.beginPath(); c.ellipse(fx + ex, -81, 3, 4, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(fx + ex - 1, -82.6, 1.2, 0, Math.PI * 2); c.fill();
+    }
+  }
+  c.fillStyle = 'rgba(255,110,140,.35)';
+  c.beginPath(); c.ellipse(fx - 12, -75, 4, 2.4, 0, 0, Math.PI * 2); c.ellipse(fx + 12, -75, 4, 2.4, 0, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#b04a62'; c.lineWidth = 1.4;
+  c.beginPath();
+  if (o.mad) { c.moveTo(fx - 3, -72); c.lineTo(fx + 3, -72); } else c.arc(fx, -74.5, 2.6, 0.15 * Math.PI, 0.85 * Math.PI);
+  c.stroke();
+
+  // front hair (bangs)
+  c.fillStyle = hair;
+  c.beginPath();
+  c.arc(fx * 0.4, -88, 24.5, Math.PI * 1.0, Math.PI * 2.0);
+  const bx = fx * 0.4;
+  const pts = [[24, -84], [18, -78], [13, -88], [7, -79], [1, -89], [-5, -79], [-11, -88], [-17, -78], [-24, -84]];
+  for (const [px, py] of pts) c.lineTo(bx + px, py);
+  c.closePath(); c.fill();
+  // side locks
+  if (L.style !== 'bob') {
+    c.beginPath(); c.moveTo(bx - 24, -88); c.quadraticCurveTo(bx - 27, -70, bx - 22 + sway * 0.3, -58); c.lineTo(bx - 18, -80); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(bx + 24, -88); c.quadraticCurveTo(bx + 27, -70, bx + 22 + sway * 0.3, -58); c.lineTo(bx + 18, -80); c.closePath(); c.fill();
+  }
+  // shine
+  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2.5;
+  c.beginPath(); c.arc(bx, -88, 17, Math.PI * 1.15, Math.PI * 1.45); c.stroke();
+  c.restore();
+}
+
+function backHair(c, style, sway, hair, hairD, cloth) {
+  const wavyMass = (bottom, wavy) => {
+    c.beginPath();
+    c.arc(0, -88, 26, Math.PI, 0);
+    for (let y = -88; y <= bottom; y += 4) c.lineTo(27 + (wavy ? Math.sin(y * 0.35) * 3 : 0) + sway * (y + 88) / 80, y);
+    c.quadraticCurveTo(0, bottom + 7, -27 + sway, bottom);
+    for (let y = bottom; y >= -88; y -= 4) c.lineTo(-27 - (wavy ? Math.sin(y * 0.35) * 3 : 0) + sway * (y + 88) / 80, y);
+    c.closePath(); c.fill();
+  };
+  if (style === 'long') wavyMass(-30, false);
+  else if (style === 'wave') wavyMass(-36, true);
+  else if (style === 'bob') {
+    c.beginPath(); c.arc(0, -88, 27, Math.PI, 0);
+    c.lineTo(29, -66); c.quadraticCurveTo(0, -60, -29, -66); c.closePath(); c.fill();
+  } else if (style === 'pony') {
+    c.beginPath(); c.arc(0, -88, 25, Math.PI, 0); c.lineTo(24, -74); c.lineTo(-24, -74); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(14, -106);
+    c.quadraticCurveTo(46, -98, 32 + sway * 2, -52);
+    c.quadraticCurveTo(28, -82, 10, -98); c.closePath(); c.fill();
+    c.fillStyle = cloth; c.beginPath(); c.arc(15, -104, 4.5, 0, Math.PI * 2); c.fill();
+  } else if (style === 'twin') {
+    c.beginPath(); c.arc(0, -88, 25, Math.PI, 0); c.lineTo(24, -74); c.lineTo(-24, -74); c.closePath(); c.fill();
+    for (const sd of [-1, 1]) {
+      c.fillStyle = hairD;
+      c.beginPath(); c.moveTo(sd * 20, -100);
+      c.quadraticCurveTo(sd * 44, -90, sd * 34 + sway * 2, -44);
+      c.quadraticCurveTo(sd * 28, -76, sd * 16, -92); c.closePath(); c.fill();
+      c.fillStyle = cloth; c.beginPath(); c.arc(sd * 21, -99, 4.5, 0, Math.PI * 2); c.fill();
+    }
+  }
+}
+
+/* ---------- customize screen ---------- */
+const pv = document.getElementById('preview'), pctx = pv.getContext('2d');
+function buildChips() {
+  document.querySelectorAll('.chips').forEach(box => {
+    const key = box.dataset.key;
+    box.innerHTML = '';
+    OPTIONS[key].forEach(([val, label]) => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (label ? '' : ' sw') + (look[key] === val ? ' on' : '');
+      if (label) b.textContent = label; else { b.style.background = val; b.setAttribute('aria-label', val); }
+      if (key === 'hair') { b.classList.add('sw'); b.textContent = ''; b.style.background = val; b.title = label; }
+      b.onclick = () => { look[key] = val; buildChips(); saveLook(); showBest(); };
+      box.appendChild(b);
+    });
+  });
+}
+function saveLook() { store.set('hairclean_look', JSON.stringify(look)); }
+const nameInput = document.getElementById('gfName');
+nameInput.value = look.name;
+nameInput.oninput = () => { look.name = nameInput.value.trim() || '여친'; saveLook(); };
+function showBest() {
+  const b = store.get('hairclean_best_' + look.diff);
+  document.getElementById('bestTxt').textContent = b ? `이 난이도 최고 기록: ${(+b).toFixed(1)}초` : '';
+}
+function drawPreview(t) {
+  const c = pctx;
+  c.setTransform(2, 0, 0, 2, 0, 0);
+  c.clearRect(0, 0, 240, 280);
+  const g = c.createLinearGradient(0, 0, 0, 280);
+  g.addColorStop(0, '#fff0f5'); g.addColorStop(1, '#ffe1ea');
+  c.fillStyle = g; c.fillRect(0, 0, 240, 280);
+  c.fillStyle = '#f7c9d6'; c.beginPath(); c.ellipse(120, 248, 90, 18, 0, 0, Math.PI * 2); c.fill();
+  drawGirl(c, 120, 246, 1.85, look, t);
+  c.fillStyle = '#e9557f'; c.font = '20px Jua, sans-serif'; c.textAlign = 'center';
+  c.fillText(look.name + ' ♡', 120, 30);
+}
+
+/* ---------- room ---------- */
+const W = 800, H = 600;
+const FLOOR = { x0: 30, x1: 770, y0: 222, y1: 582 };
+const RUG = { cx: 400, cy: 410, rx: 180, ry: 88 };
+const DOOR = { x: 712, y: 214 };
+const inRug = (x, y) => ((x - RUG.cx) / RUG.rx) ** 2 + ((y - RUG.cy) / RUG.ry) ** 2 < 0.9;
+
+const BGS = 2;
+const bg = document.createElement('canvas'); bg.width = W * BGS; bg.height = H * BGS;
+function drawRoom(c) {
+  const R = seeded(7);
+  c.save(); c.scale(BGS, BGS);
+  // wall
+  let g = c.createLinearGradient(0, 0, 0, 205);
+  g.addColorStop(0, '#fbe9dd'); g.addColorStop(1, '#f5dac8');
+  c.fillStyle = g; c.fillRect(0, 0, W, 206);
+  c.fillStyle = 'rgba(255,255,255,.35)';
+  for (let x = 0; x < W; x += 30) c.fillRect(x, 0, 11, 206);
+  // window
+  c.fillStyle = '#fff'; c.fillRect(296, 36, 178, 128);
+  g = c.createLinearGradient(0, 44, 0, 156); g.addColorStop(0, '#a9d8ff'); g.addColorStop(1, '#e6f5ff');
+  c.fillStyle = g; c.fillRect(304, 44, 162, 112);
+  c.fillStyle = 'rgba(255,255,255,.9)';
+  for (const [cx, cy] of [[340, 80], [356, 74], [372, 82], [420, 112], [436, 106], [450, 114]]) { c.beginPath(); c.arc(cx, cy, 11, 0, 7); c.fill(); }
+  c.fillStyle = '#fff'; c.fillRect(382, 44, 6, 112); c.fillRect(304, 98, 162, 5);
+  c.fillStyle = '#ffb3c8';
+  for (const sd of [0, 1]) {
+    c.beginPath();
+    const x0 = sd ? 474 : 296, dx = sd ? -1 : 1;
+    c.moveTo(x0 - dx * 14, 28); c.lineTo(x0 + dx * 30, 28);
+    c.quadraticCurveTo(x0 + dx * 10, 100, x0 + dx * 26, 176);
+    c.lineTo(x0 - dx * 14, 176); c.closePath(); c.fill();
+  }
+  c.fillStyle = '#e98aa6'; c.fillRect(276, 24, 218, 7);
+  // dresser + mirror
+  c.fillStyle = '#d8b48a'; c.beginPath(); c.ellipse(150, 82, 40, 48, 0, 0, 7); c.fill();
+  c.fillStyle = '#e3f3fb'; c.beginPath(); c.ellipse(150, 82, 32, 40, 0, 0, 7); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 4;
+  c.beginPath(); c.moveTo(134, 70); c.lineTo(146, 56); c.moveTo(138, 84); c.lineTo(156, 62); c.stroke();
+  c.fillStyle = '#ecccaa'; c.fillRect(78, 128, 144, 80);
+  c.fillStyle = '#e0bd96'; c.fillRect(74, 124, 152, 8);
+  c.strokeStyle = '#c99f74'; c.lineWidth = 2;
+  for (const y of [148, 172]) { c.beginPath(); c.moveTo(84, y); c.lineTo(216, y); c.stroke(); }
+  c.fillStyle = '#b8875a'; for (const y of [138, 160, 186]) { c.beginPath(); c.arc(150, y, 3, 0, 7); c.fill(); }
+  c.fillStyle = '#ff9ec0'; c.fillRect(96, 108, 10, 16); c.fillStyle = '#fff'; c.fillRect(98, 103, 6, 6);
+  c.fillStyle = '#b9a2ff'; c.beginPath(); c.arc(198, 116, 8, 0, 7); c.fill();
+  // heart frame
+  c.fillStyle = '#fff'; c.fillRect(236, 52, 44, 52);
+  c.fillStyle = '#ffe3ec'; c.fillRect(240, 56, 36, 44);
+  c.fillStyle = '#ff7aa2'; c.font = '26px sans-serif'; c.textAlign = 'center'; c.fillText('♥', 258, 87);
+  // plant
+  c.fillStyle = '#5fb37a';
+  for (let i = 0; i < 7; i++) { c.save(); c.translate(606, 160); c.rotate(-1.3 + i * 0.43); c.beginPath(); c.ellipse(0, -26, 9, 26, 0, 0, 7); c.fill(); c.restore(); }
+  c.fillStyle = '#d9825b'; c.beginPath(); c.moveTo(584, 156); c.lineTo(628, 156); c.lineTo(622, 204); c.lineTo(590, 204); c.closePath(); c.fill();
+  // door
+  c.fillStyle = '#c99a6b'; c.fillRect(664, 52, 96, 160);
+  c.fillStyle = '#b9875a'; c.fillRect(670, 58, 84, 154);
+  c.strokeStyle = '#a77649'; c.lineWidth = 3; c.strokeRect(680, 70, 64, 56); c.strokeRect(680, 140, 64, 60);
+  c.fillStyle = '#f1c75b'; c.beginPath(); c.arc(742, 136, 5, 0, 7); c.fill();
+  // baseboard
+  c.fillStyle = '#efd9c6'; c.fillRect(0, 202, 664, 12); c.fillRect(760, 202, 40, 12);
+  c.fillStyle = '#e2c4ab'; c.fillRect(0, 212, W, 3);
+  // floor planks
+  const rowH = 30;
+  for (let y = 215, r = 0; y < H; y += rowH, r++) {
+    let x = -R() * 160;
+    while (x < W) {
+      const pw = 120 + R() * 110;
+      const l = 60 + R() * 8, sat = 42 + R() * 12;
+      c.fillStyle = `hsl(30,${sat}%,${l}%)`; c.fillRect(x, y, pw, rowH);
+      c.strokeStyle = 'rgba(150,100,60,.14)'; c.lineWidth = 1;
+      for (let k = 0; k < 3; k++) {
+        const gy = y + 5 + R() * (rowH - 10);
+        c.beginPath(); c.moveTo(x + 4, gy);
+        c.bezierCurveTo(x + pw * 0.3, gy + R() * 4 - 2, x + pw * 0.6, gy + R() * 4 - 2, x + pw - 4, gy); c.stroke();
+      }
+      c.fillStyle = 'rgba(110,70,35,.35)'; c.fillRect(x, y, 1.5, rowH);
+      x += pw;
+    }
+    c.fillStyle = 'rgba(110,70,35,.3)'; c.fillRect(0, y, W, 1.5);
+  }
+  g = c.createLinearGradient(0, 215, 0, 330); g.addColorStop(0, 'rgba(70,40,20,.16)'); g.addColorStop(1, 'rgba(70,40,20,0)');
+  c.fillStyle = g; c.fillRect(0, 215, W, 115);
+  // rug
+  c.fillStyle = '#f3b0c3'; c.beginPath(); c.ellipse(RUG.cx, RUG.cy, RUG.rx, RUG.ry, 0, 0, 7); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 4;
+  c.beginPath(); c.ellipse(RUG.cx, RUG.cy, RUG.rx * 0.82, RUG.ry * 0.78, 0, 0, 7); c.stroke();
+  c.lineWidth = 1.2;
+  for (let i = 0; i < 2600; i++) {
+    const a = R() * Math.PI * 2, rr = Math.sqrt(R());
+    const x = RUG.cx + Math.cos(a) * RUG.rx * rr * 0.98, y = RUG.cy + Math.sin(a) * RUG.ry * rr * 0.98;
+    c.strokeStyle = pick2(R, ['rgba(255,255,255,.35)', 'rgba(220,120,150,.35)', 'rgba(250,190,205,.6)']);
+    const ang = R() * Math.PI;
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(ang) * 3, y + Math.sin(ang) * 3); c.stroke();
+  }
+  c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '18px sans-serif';
+  for (const [hx, hy] of [[400, 416], [330, 396], [470, 396], [365, 442], [435, 442]]) c.fillText('♥', hx, hy);
+  c.restore();
+}
+function pick2(R, arr) { return arr[(R() * arr.length) | 0]; }
+
+/* ---------- game state ---------- */
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+let DPR = 1;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = W * DPR; cv.height = H * DPR;
+  const maxW = Math.min(900, window.innerWidth - 24, (window.innerHeight - 190) * 4 / 3);
+  document.documentElement.style.setProperty('--stageW', Math.max(300, maxW) + 'px');
+}
+window.addEventListener('resize', resize);
+
+const SHED_DUR = 30;
+let G = null; // current game
+let tool = 'tweezers', magOn = false;
+const ptr = { x: W / 2, y: H / 2, inside: false, down: false, touch: false };
+
+const LINES = ['오늘따라 머리 많이 빠지네~', '자기야 청소 부탁해♡', '샴푸 바꿔야 하나…', '방금 머리 감고 왔어!', '나 오늘 예뻐?', '왜 자꾸 바닥만 봐?', '흠~ 흠~ ♪', '머리 좀 자를까?', '자기 방 넘 좋다~'];
+
+function newGame() {
+  const d = DIFF[look.diff];
+  G = {
+    hairs: [], fx: [], spawned: 0, target: d.n, solo: d.solo,
+    phase: 'enter', phaseT: 0, time: 0, over: false,
+    girl: { x: DOOR.x, y: DOOR.y + 4, tx: 560, ty: 340, alpha: 0, pause: 0, brush: 0, burst: 0, dir: 0, walking: true, speech: '', speechT: 0, nextLine: 5, mad: false },
+    shedAcc: 0, heat: 0, overheat: 0, rugWarned: false,
+    picks: 0, sucks: 0, combo: 0, lastPick: -9, endT: 0
+  };
+  say(look.name === '여친' ? '자기야 나 왔어~' : `${look.name} 왔어~ 자기야!`);
+}
+function say(text, dur = 2.6) { G.girl.speech = text; G.girl.speechT = dur; }
+
+function girlScale(y) { return 0.95 + 0.45 * (y - FLOOR.y0) / (FLOOR.y1 - FLOOR.y0); }
+
+function spawnHair(burst) {
+  const g = G.girl, s = girlScale(g.y);
+  const fine = Math.random() < 0.28;
+  const [a, b] = HAIR_LEN[look.style];
+  const len = fine ? rand(8, 15) : rand(a, b);
+  const lx = clamp(g.x + rand(-28, 28) * s - g.dir * 12, FLOOR.x0 + 10, FLOOR.x1 - 10);
+  const ly = clamp(g.y + rand(-12, 14) + (burst ? rand(-10, 10) : 0), FLOOR.y0 + 6, FLOOR.y1 - 6);
+  const wave = look.style === 'wave';
+  const k = wave ? rand(0.25, 0.4) * len * (Math.random() < 0.5 ? -1 : 1) : 0;
+  const h = {
+    x: lx, y: ly, sx: g.x + rand(-16, 16) * s, sy: g.y - 82 * s,
+    ang: rand(0, Math.PI), len,
+    k1: wave ? k : rand(-0.22, 0.22) * len, k2: wave ? -k : rand(-0.22, 0.22) * len,
+    w: fine ? 0.75 : rand(1.0, 1.5), a: fine ? 0.4 : rand(0.78, 0.95),
+    col: shade(look.hair, fine ? 0.18 : rand(-0.1, 0.08)),
+    fine, rug: inRug(lx, ly), state: 'falling', t: 0, fall: rand(0.5, 0.85), jig: 0, pts: null
+  };
+  computePts(h);
+  G.hairs.push(h); G.spawned++;
+}
+function computePts(h) {
+  const L = h.len / 2, ca = Math.cos(h.ang), sa = Math.sin(h.ang);
+  const P = [[-L, 0], [-L / 3, h.k1], [L / 3, h.k2], [L, 0]];
+  h.pts = [];
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8, u = 1 - t;
+    const bx = u * u * u * P[0][0] + 3 * u * u * t * P[1][0] + 3 * u * t * t * P[2][0] + t * t * t * P[3][0];
+    const by = u * u * u * P[0][1] + 3 * u * u * t * P[1][1] + 3 * u * t * t * P[2][1] + t * t * t * P[3][1];
+    h.pts.push([h.x + bx * ca - by * sa, h.y + bx * sa + by * ca]);
+  }
+}
+function hairDist(h, x, y) {
+  let m = 1e9;
+  for (const [px, py] of h.pts) { const d = (px - x) ** 2 + (py - y) ** 2; if (d < m) m = d; }
+  return Math.sqrt(m);
+}
+const remaining = () => { let n = 0; for (const h of G.hairs) if (h.state === 'floor' || h.state === 'falling') n++; return n; };
+
+/* ---------- tools ---------- */
+function tryPick(x, y) {
+  if (!G || G.over) return;
+  const R = ptr.touch ? 20 : 12;
+  let best = null, bd = R;
+  for (const h of G.hairs) {
+    if (h.state !== 'floor') continue;
+    if (Math.abs(h.x - x) > h.len / 2 + R || Math.abs(h.y - y) > h.len / 2 + R) continue;
+    const d = hairDist(h, x, y);
+    if (d < bd) { bd = d; best = h; }
+  }
+  if (best) {
+    best.state = 'picked'; best.t = 0; G.picks++;
+    G.combo = (G.time - G.lastPick < 0.9) ? G.combo + 1 : 1; G.lastPick = G.time;
+    G.fx.push({ x, y: y - 10, t: 0, text: G.combo >= 3 ? `콤보 x${G.combo}` : '+1' });
+    sfx.pick(G.combo);
+    if (navigator.vibrate) try { navigator.vibrate(8); } catch (e) {}
+  } else {
+    G.fx.push({ x, y, t: 0, puff: true });
+  }
+}
+function vacuumStep(dt) {
+  const g = G;
+  if (g.overheat > 0) {
+    g.overheat -= dt;
+    if (g.overheat <= 0) { g.heat = 0.55; }
+    return false;
+  }
+  const active = ptr.down && tool === 'vacuum' && ptr.inside;
+  if (!active) { g.heat = Math.max(0, g.heat - dt * 0.3); return false; }
+  g.heat += dt * 0.36;
+  if (g.heat >= 1) { g.heat = 1; g.overheat = 2.2; toast('청소기 과열! 잠깐 식히는 중… 🔥'); sfx.overheat(); return false; }
+  const R = 44;
+  for (const h of g.hairs) {
+    if (h.state !== 'floor') continue;
+    if (Math.abs(h.x - ptr.x) > h.len / 2 + R || Math.abs(h.y - ptr.y) > h.len / 2 + R) continue;
+    if (hairDist(h, ptr.x, ptr.y) > R) continue;
+    if (h.rug) {
+      h.jig = 0.25;
+      if (!g.rugWarned) { g.rugWarned = true; toast('카펫에 박힌 머리카락은 핀셋으로!'); }
+      continue;
+    }
+    h.state = 'sucked'; h.t = 0; h.vx = ptr.x; h.vy = ptr.y; g.sucks++;
+  }
+  return true;
+}
+
+let toastTimer = 0;
+const toastEl = document.getElementById('toast');
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800); }
+
+/* ---------- update ---------- */
+function update(dt) {
+  const g = G.girl;
+  G.time += dt;
+  if (G.over) { G.endT += dt; }
+
+  // girl movement
+  if (g.alpha > 0 || G.phase === 'enter') {
+    if (g.pause > 0) {
+      g.pause -= dt; g.walking = false;
+      if (g.brush > 0) {
+        g.brush -= dt;
+        while (g.burst > 0 && Math.random() < dt * 9) { g.burst--; if (G.spawned < G.target * 1.15) spawnHair(true); }
+      }
+    } else {
+      const dx = g.tx - g.x, dy = g.ty - g.y, d = Math.hypot(dx, dy);
+      const sp = 78 * dt;
+      if (d < sp) {
+        g.x = g.tx; g.y = g.ty; g.walking = false; g.dir = 0;
+        onArrive();
+      } else {
+        g.x += dx / d * sp; g.y += dy / d * sp * 0.85; g.walking = true;
+        g.dir = Math.abs(dx) > Math.abs(dy) * 0.4 ? Math.sign(dx) : 0;
+      }
+    }
+  }
+  if (G.phase === 'enter') g.alpha = Math.min(1, g.alpha + dt * 2.5);
+  if (g.speechT > 0) g.speechT -= dt;
+
+  // shedding
+  if (G.phase === 'enter' || G.phase === 'shed' || G.phase === 'leave') {
+    const rate = G.target * 0.78 / (SHED_DUR + 7);
+    G.shedAcc += rate * dt * (g.walking ? 1.15 : 0.6);
+    while (G.shedAcc >= 1) { G.shedAcc--; if (G.spawned < G.target * 1.15) spawnHair(false); }
+  }
+
+  // phases
+  if (G.phase === 'shed') {
+    G.phaseT -= dt;
+    g.nextLine -= dt;
+    if (g.nextLine <= 0 && g.brush <= 0) { say(pick(LINES)); g.nextLine = rand(4.5, 7.5); }
+    if (G.phaseT <= 0) {
+      G.phase = 'leave'; g.tx = DOOR.x; g.ty = DOOR.y + 4; g.pause = 0; g.brush = 0;
+      say('나 잠깐 편의점 갔다올게!', 3);
+    }
+  } else if (G.phase === 'gone') {
+    g.alpha -= dt * 2.5;
+    if (g.alpha <= 0) { g.alpha = 0; G.phase = 'solo'; G.phaseT = G.solo; toast(`${look.name} 귀가까지 ${G.solo}초! 전부 치워!`); }
+  } else if (G.phase === 'solo' && !G.over) {
+    G.phaseT -= dt;
+    if (remaining() === 0) finish(true);
+    else if (G.phaseT <= 0) {
+      G.phaseT = 0;
+      g.x = DOOR.x; g.y = DOOR.y + 4; g.alpha = 1; g.mad = true; g.tx = g.x; g.ty = g.y + 40;
+      say('자기야… 이게 다 뭐야?', 5);
+      finish(false);
+    }
+  }
+
+  // hairs
+  for (const h of G.hairs) {
+    h.t += dt;
+    if (h.state === 'falling' && h.t >= h.fall) { h.state = 'floor'; h.t = 0; }
+    if (h.jig > 0) h.jig -= dt;
+  }
+  if (G.hairs.length > 400 || (G.hairs.length && G.time % 2 < dt)) {
+    G.hairs = G.hairs.filter(h => !((h.state === 'picked' || h.state === 'sucked') && h.t > 1));
+  }
+
+  // tools
+  const sucking = vacuumStep(dt);
+  sfx.vac(sucking);
+  G.fx = G.fx.filter(f => (f.t += dt) < 0.8);
+
+  updateHud();
+}
+function onArrive() {
+  const g = G.girl;
+  if (G.phase === 'enter') { G.phase = 'shed'; G.phaseT = SHED_DUR; nextWaypoint(); return; }
+  if (G.phase === 'leave') { G.phase = 'gone'; return; }
+  if (G.phase === 'shed') {
+    if (Math.random() < 0.32) {
+      g.pause = 2; g.brush = 2; g.burst = Math.round(G.target * 0.07);
+      say('빗질 좀 해야지~ ✨', 2);
+    } else g.pause = rand(0.2, 1.2);
+    nextWaypoint();
+  }
+}
+function nextWaypoint() {
+  const g = G.girl;
+  for (let i = 0; i < 8; i++) {
+    const x = rand(90, 710), y = rand(250, 560);
+    if (Math.hypot(x - g.x, y - g.y) > 160) { g.tx = x; g.ty = y; return; }
+  }
+  g.tx = rand(90, 710); g.ty = rand(250, 560);
+}
+
+/* ---------- render ---------- */
+function drawHair(c, h, x, y, ang, alpha, glow, scale = 1) {
+  const L = h.len / 2 * scale;
+  c.save(); c.translate(x, y); c.rotate(ang);
+  c.beginPath(); c.moveTo(-L, 0); c.bezierCurveTo(-L / 3, h.k1 * scale, L / 3, h.k2 * scale, L, 0);
+  if (glow) { c.globalAlpha = 0.85 * alpha; c.strokeStyle = '#fff'; c.lineWidth = h.w + 1.8; c.stroke(); }
+  c.globalAlpha = alpha; c.strokeStyle = h.col; c.lineWidth = h.w; c.lineCap = 'round'; c.stroke();
+  c.restore();
+}
+function renderWorld(c, lens) {
+  c.drawImage(bg, 0, 0, W, H);
+  const t = G.time;
+  for (const h of G.hairs) {
+    if (h.state !== 'floor') continue;
+    const j = h.jig > 0 ? Math.sin(t * 60) * 1.5 : 0;
+    drawHair(c, h, h.x + j, h.y, h.ang, lens ? Math.max(h.a, 0.95) : h.a, lens);
+  }
+  const g = G.girl;
+  if (g.alpha > 0) drawGirl(c, g.x, g.y, girlScale(g.y), look, t, { walking: g.walking, dir: g.dir, brushing: g.brush > 0, alpha: g.alpha, mad: g.mad });
+  for (const h of G.hairs) {
+    if (h.state !== 'falling') continue;
+    const p = h.t / h.fall, e = p * p;
+    drawHair(c, h, lerp(h.sx, h.x, p) + Math.sin(p * 7) * 5, lerp(h.sy, h.y, e), h.ang + (1 - p) * Math.sin(h.t * 9) * 0.9, h.a * Math.min(1, p * 3 + 0.2), lens);
+  }
+}
+function render() {
+  const c = ctx;
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  renderWorld(c, false);
+  const t = G.time;
+  // collected animations
+  for (const h of G.hairs) {
+    if (h.state === 'picked' && h.t < 0.4) {
+      const p = h.t / 0.4;
+      drawHair(c, h, h.x, h.y - p * 34, h.ang + p, h.a * (1 - p), false);
+    } else if (h.state === 'sucked' && h.t < 0.18) {
+      const p = h.t / 0.18;
+      drawHair(c, h, lerp(h.x, h.vx, p), lerp(h.y, h.vy, p), h.ang + p * 4, h.a * (1 - p * 0.6), false, 1 - p * 0.8);
+    }
+  }
+  // speech
+  const g = G.girl;
+  if (g.speechT > 0 && g.alpha > 0.3) speech(c, g.x, g.y - 118 * girlScale(g.y), g.speech);
+  // fx
+  c.textAlign = 'center';
+  for (const f of G.fx) {
+    const p = f.t / 0.8;
+    if (f.puff) {
+      c.strokeStyle = `rgba(255,255,255,${0.7 * (1 - p)})`; c.lineWidth = 2;
+      c.beginPath(); c.arc(f.x, f.y, 4 + p * 12, 0, 7); c.stroke();
+    } else {
+      c.globalAlpha = 1 - p; c.fillStyle = '#e9557f'; c.font = '18px Jua, sans-serif';
+      c.strokeStyle = '#fff'; c.lineWidth = 4; c.strokeText(f.text, f.x, f.y - p * 26); c.fillText(f.text, f.x, f.y - p * 26);
+      c.globalAlpha = 1;
+    }
+  }
+  // magnifier lens
+  const showPtr = ptr.inside && (!ptr.touch || ptr.down);
+  if (magOn && showPtr) {
+    const R = ptr.touch ? 78 : 90, Z = 2.6;
+    let lx = ptr.x, ly = ptr.y;
+    if (ptr.touch) { ly = ptr.y - 120; if (ly < R) ly = ptr.y + 120; }
+    c.save();
+    c.beginPath(); c.arc(lx, ly, R, 0, 7); c.clip();
+    c.translate(lx, ly); c.scale(Z, Z); c.translate(-ptr.x, -ptr.y);
+    renderWorld(c, true);
+    c.restore();
+    c.strokeStyle = '#c58b4a'; c.lineWidth = 7; c.beginPath(); c.arc(lx, ly, R, 0, 7); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 3; c.beginPath(); c.arc(lx, ly, R - 8, Math.PI * 1.1, Math.PI * 1.4); c.stroke();
+    if (!ptr.touch) {
+      c.strokeStyle = '#8b5a2b'; c.lineWidth = 12; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(lx + R * 0.72, ly + R * 0.72); c.lineTo(lx + R * 1.15, ly + R * 1.15); c.stroke();
+    } else {
+      c.strokeStyle = 'rgba(233,85,127,.8)'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(lx - 8, ly); c.lineTo(lx + 8, ly); c.moveTo(lx, ly - 8); c.lineTo(lx, ly + 8); c.stroke();
+    }
+  }
+  if (showPtr) drawCursor(c, t);
+}
+function speech(c, x, y, text) {
+  c.font = '15px Jua, sans-serif';
+  const w = c.measureText(text).width + 22, h = 28;
+  x = clamp(x, w / 2 + 4, W - w / 2 - 4); y = Math.max(h + 4, y);
+  c.fillStyle = 'rgba(255,255,255,.95)'; c.strokeStyle = '#f3b0c3'; c.lineWidth = 2;
+  c.beginPath(); c.roundRect(x - w / 2, y - h, w, h, 14); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(x - 6, y - 1); c.lineTo(x, y + 8); c.lineTo(x + 6, y - 1); c.fill();
+  c.fillStyle = '#4a3640'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y - h / 2 + 1);
+  c.textBaseline = 'alphabetic';
+}
+function drawCursor(c, t) {
+  const x = ptr.x, y = ptr.y;
+  c.save();
+  if (tool === 'tweezers') {
+    const open = ptr.down ? 0.5 : 4;
+    c.lineCap = 'round';
+    c.strokeStyle = '#8c94a6'; c.lineWidth = 4;
+    c.beginPath(); c.moveTo(x - open * 0.5, y - open * 0.3); c.lineTo(x + 30, y - 46); c.stroke();
+    c.strokeStyle = '#c9cfdb';
+    c.beginPath(); c.moveTo(x + open * 0.6, y + open * 0.2); c.lineTo(x + 38, y - 40); c.stroke();
+    c.fillStyle = '#7d8597'; c.beginPath(); c.arc(x + 35, y - 45, 4, 0, 7); c.fill();
+    if (!magOn) { c.strokeStyle = 'rgba(233,85,127,.5)'; c.lineWidth = 1; c.beginPath(); c.arc(x, y, ptr.touch ? 20 : 12, 0, 7); c.stroke(); }
+  } else if (tool === 'vacuum') {
+    const hot = G.heat, over = G.overheat > 0;
+    if (ptr.down && !over) {
+      c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 2; c.setLineDash([6, 8]); c.lineDashOffset = -t * 60;
+      c.beginPath(); c.arc(x, y, 44, 0, 7); c.stroke(); c.setLineDash([]);
+    }
+    c.strokeStyle = '#8a8fa3'; c.lineWidth = 7; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x + 4, y - 6); c.quadraticCurveTo(x + 40, y - 30, x + 70, y - 110); c.stroke();
+    const jit = ptr.down && !over ? Math.sin(t * 70) * 1 : 0;
+    c.fillStyle = over ? '#e23b3b' : `rgb(255,${122 - hot * 60 | 0},${162 - hot * 100 | 0})`;
+    c.beginPath(); c.roundRect(x - 26 + jit, y - 8, 52, 13, 5); c.fill();
+    c.fillStyle = '#4a3640'; c.fillRect(x - 25 + jit, y + 3, 50, 3);
+    if (over) { c.font = '18px sans-serif'; c.textAlign = 'center'; c.fillText('🔥', x, y - 16); }
+  } else {
+    c.strokeStyle = 'rgba(74,54,64,.6)'; c.lineWidth = 1.5;
+    c.beginPath(); c.arc(x, y, 6, 0, 7); c.stroke();
+  }
+  c.restore();
+}
+
+/* ---------- HUD ---------- */
+const remainEl = document.getElementById('remainTxt'), phaseEl = document.getElementById('phaseTxt'), timeEl = document.getElementById('timeTxt'), heatEl = document.getElementById('heatBar');
+let lastHud = '';
+function updateHud() {
+  const r = remaining();
+  let ph;
+  if (G.phase === 'enter') ph = `${look.name} 등장!`;
+  else if (G.phase === 'shed') ph = `외출까지 ${Math.ceil(G.phaseT)}초`;
+  else if (G.phase === 'leave' || G.phase === 'gone') ph = '외출 중…';
+  else ph = `귀가까지 ${Math.ceil(G.phaseT)}초`;
+  const key = r + ph + G.time.toFixed(1);
+  if (key !== lastHud) {
+    lastHud = key;
+    remainEl.textContent = r; phaseEl.textContent = ph; timeEl.textContent = G.time.toFixed(1);
+    phaseEl.classList.toggle('warn', G.phase === 'solo' && G.phaseT <= 10);
+  }
+  heatEl.style.width = (G.heat * 100) + '%';
+  heatEl.style.background = G.overheat > 0 ? '#e23b3b' : G.heat > 0.7 ? '#ffb347' : '#7bd389';
+}
+
+/* ---------- finish ---------- */
+function finish(win) {
+  G.over = true; G.win = win;
+  sfx.vac(false);
+  win ? sfx.win() : sfx.lose();
+  setTimeout(() => showResult(win), win ? 700 : 1600);
+}
+function showResult(win) {
+  const total = G.spawned;
+  const left = remaining();
+  const time = G.time;
+  const key = 'hairclean_best_' + look.diff;
+  let best = +store.get(key) || 0, isNew = false;
+  if (win && (!best || time < best)) { best = time; isNew = true; store.set(key, time.toFixed(2)); }
+  const par = SHED_DUR + 8 + G.solo * 0.35;
+  let rank;
+  if (!win) rank = left <= 3 ? '아깝다! 😭' : left <= 15 ? '눈썰미 부족 👀' : '청소 포기각 💀';
+  else if (time < par * 0.88) rank = '머리카락 장인 👑';
+  else if (time < par) rank = '꼼꼼한 남친 ✨';
+  else rank = '무난한 청소부 🧹';
+  $('resTitle').textContent = win ? '깨끗해졌다! ✨' : `${look.name}${iga(look.name)} 돌아왔다… 😳`;
+  $('resQuote').textContent = win ? `${look.name}: "우와 바닥 반짝반짝! 자기 최고♡"` : `${look.name}: "자기야… 이게 다 뭐야? (남은 머리카락 ${left}개)"`;
+  $('resRank').textContent = rank;
+  $('resCount').textContent = `${total - left} / ${total}`;
+  $('resTime').textContent = win ? `${time.toFixed(1)}초` : '실패';
+  $('resTools').textContent = `${G.picks} / ${G.sucks}`;
+  $('resBest').textContent = best ? `${best.toFixed(1)}초${isNew ? ' 🆕' : ''}` : '-';
+  document.getElementById('result').classList.remove('hidden');
+}
+const $ = id => document.getElementById(id);
+const iga = n => { const c = n.charCodeAt(n.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? '이' : '가'; };
+
+/* ---------- input ---------- */
+function setPtr(e) {
+  const r = cv.getBoundingClientRect();
+  ptr.x = (e.clientX - r.left) / r.width * W;
+  ptr.y = (e.clientY - r.top) / r.height * H;
+  ptr.touch = e.pointerType !== 'mouse';
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  setPtr(e); ptr.down = true; ptr.inside = true;
+  sfx.unlock();
+  if (tool === 'tweezers' && !ptr.touch) tryPick(ptr.x, ptr.y);
+});
+cv.addEventListener('pointermove', e => { setPtr(e); ptr.inside = true; });
+const up = e => {
+  if (ptr.down && tool === 'tweezers' && ptr.touch) tryPick(ptr.x, ptr.y);
+  ptr.down = false;
+  if (ptr.touch) ptr.inside = false;
+};
+cv.addEventListener('pointerup', up);
+cv.addEventListener('pointercancel', () => { ptr.down = false; if (ptr.touch) ptr.inside = false; });
+cv.addEventListener('pointerleave', () => { if (!ptr.down) ptr.inside = false; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+function setTool(tl) {
+  if (tl === 'magnifier') { magOn = !magOn; $('magState').textContent = magOn ? 'ON' : 'OFF'; }
+  else tool = tl;
+  document.querySelectorAll('.tool[data-tool]').forEach(b => {
+    const t = b.dataset.tool;
+    b.classList.toggle('on', t === 'magnifier' ? magOn : t === tool);
+  });
+}
+document.querySelectorAll('.tool[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+window.addEventListener('keydown', e => {
+  if (!$('screen-game').classList.contains('active') || e.target.tagName === 'INPUT') return;
+  if (e.key === '1') setTool('tweezers');
+  else if (e.key === '2') setTool('vacuum');
+  else if (e.key === '3' || e.key === 'm' || e.key === ' ') { e.preventDefault(); setTool('magnifier'); }
+});
+
+/* ---------- sound ---------- */
+const sfx = (() => {
+  let ac = null, muted = store.get('hairclean_mute') === '1', vacGain = null;
+  function unlock() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+      const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+      const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+      vacGain = ac.createGain(); vacGain.gain.value = 0;
+      src.connect(f).connect(vacGain).connect(ac.destination); src.start();
+    } catch (e) { ac = null; }
+  }
+  function tone(freq, dur, type = 'sine', vol = 0.12, delay = 0) {
+    if (!ac || muted) return;
+    const o = ac.createOscillator(), g = ac.createGain(), t0 = ac.currentTime + delay;
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(ac.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  let vacOn = false;
+  return {
+    unlock,
+    get muted() { return muted; },
+    toggle() { muted = !muted; store.set('hairclean_mute', muted ? '1' : '0'); if (muted) this.vac(false); return muted; },
+    pick(combo) { tone(820 + Math.min(combo, 10) * 60, 0.08, 'triangle', 0.14); },
+    overheat() { tone(220, 0.25, 'sawtooth', 0.06); tone(160, 0.3, 'sawtooth', 0.06, 0.15); },
+    vac(on) {
+      on = on && !muted;
+      if (!ac || !vacGain || on === vacOn) return;
+      vacOn = on; vacGain.gain.setTargetAtTime(on ? 0.22 : 0, ac.currentTime, 0.05);
+    },
+    win() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.25, 'triangle', 0.14, i * 0.11)); },
+    lose() { [392, 330, 262].forEach((f, i) => tone(f, 0.35, 'square', 0.06, i * 0.2)); }
+  };
+})();
+const muteBtn = $('muteBtn');
+muteBtn.textContent = sfx.muted ? '🔇' : '🔊';
+muteBtn.onclick = () => { muteBtn.textContent = sfx.toggle() ? '🔇' : '🔊'; };
+
+/* ---------- screens & loop ---------- */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  $('result').classList.add('hidden');
+}
+function startGame() {
+  sfx.unlock();
+  show('screen-game');
+  resize();
+  setTool('tweezers');
+  newGame();
+}
+$('startBtn').onclick = startGame;
+$('againBtn').onclick = startGame;
+$('customBtn').onclick = () => { G = null; show('screen-custom'); };
+$('shareBtn').onclick = async () => {
+  const total = G.spawned, left = remaining();
+  const text = G.win
+    ? `${look.name}의 머리카락 ${total}가닥을 ${G.time.toFixed(1)}초 만에 전부 치웠다! 🧹✨`
+    : `${look.name}의 머리카락을 ${left}가닥 남겨서 혼났다… 😳`;
+  const url = location.href.split('#')[0];
+  try {
+    if (navigator.share) { await navigator.share({ title: '여자친구 머리카락 청소하기', text, url }); return; }
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    toast('복사했어요! 친구한테 붙여넣기 📋');
+    $('shareBtn').textContent = '복사됨!';
+    setTimeout(() => $('shareBtn').textContent = '자랑하기', 1500);
+  } catch (e) {}
+};
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (G && $('screen-game').classList.contains('active')) { update(dt); render(); }
+  else if ($('screen-custom').classList.contains('active')) drawPreview(now / 1000);
+  requestAnimationFrame(loop);
+}
+
+if (/[?&]debug/.test(location.search)) window.__game = () => ({ G, ptr });
+buildChips(); showBest(); drawRoom(bg.getContext('2d')); resize();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
