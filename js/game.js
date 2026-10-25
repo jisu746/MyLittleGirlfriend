@@ -19,7 +19,7 @@ const iga = n => { const c = n.charCodeAt(n.length - 1); return c >= 0xac00 && c
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const DEBUG = /[?&]debug/.test(location.search);
 // GitHub Pages caches files separately; if this script doesn't match the page, reload once with fresh files
-const BUILD = '5';
+const BUILD = '6';
 {
   const meta = document.querySelector('meta[name="build"]');
   if ((!meta || meta.content !== BUILD) && !/[?&]r=/.test(location.search)) {
@@ -435,7 +435,7 @@ const player = { x: -0.4, z: 1.0, yaw: 0, pitch: -0.1, eye: 0.85, prone: false }
 const input = { keys: {}, use: false, usePrev: false, magHold: false, joyX: 0, joyY: 0 };
 let tool = 'tweezers', magOn = false, flashOn = false;
 let paused = true, started = false;
-const PLAYABLE = { clean: 1, reveal: 1, keepclean: 1, act: 1 };
+const PLAYABLE = { clean: 1, reveal: 1, act: 1 };
 
 function newActor(kind) {
   return { kind, x: 0, z: 0, f: Math.PI / 2, tx: 0, tz: 0, speed: 0.85, vis: false, walking: false, anim: rand(0, 5),
@@ -472,10 +472,17 @@ function newGame() {
     hideHair(addHair(x, z, { fine: Math.random() < 0.3 }), 'rug');
   }
   for (let i = 0; i < 2; i++) hideHair(addHair(rand(PLANT_HOME.x0 + 0.06, PLANT_HOME.x1 - 0.06), rand(PLANT_HOME.z0 + 0.06, PLANT_HOME.z1 - 0.06)), 'plant');
-  // exactly one mysterious curly hair, out in the open
-  let cx, cz;
-  do { cx = rand(-2.4, 2.4); cz = rand(-1.9, 2.0); } while (furnAt(cx, cz, 0.15) || Math.hypot(cx - player.x, cz - player.z) < 1.2);
-  G.curly = addHair(cx, cz, { curly: true });
+  // exactly one mysterious curly hair, somewhere you have to look for
+  const spot = pick(['bed', 'sofa', 'rug', 'plant']);
+  if (spot === 'bed') G.curly = addHair(rand(-2.6, -1.65), rand(-0.85, -0.62), { curly: true });
+  else if (spot === 'sofa') G.curly = addHair(rand(0.8, 2.2), rand(1.86, 2.05), { curly: true });
+  else {
+    let cx, cz;
+    if (spot === 'rug') do { cx = rand(RUG.cx - RUG.rx * 0.8, RUG.cx + RUG.rx * 0.8); cz = rand(RUG.cz - RUG.rz * 0.8, RUG.cz + RUG.rz * 0.8); } while (!inRugArea(cx, cz) || furnAt(cx, cz, 0.05));
+    else { cx = rand(PLANT_HOME.x0 + 0.08, PLANT_HOME.x1 - 0.08); cz = rand(PLANT_HOME.z0 + 0.08, PLANT_HOME.z1 - 0.08); }
+    G.curly = addHair(cx, cz, { curly: true });
+    hideHair(G.curly, spot);
+  }
   // story staging
   const g = G.girl;
   Object.assign(g, { x: 1.35, z: -0.85, tx: 1.35, tz: -0.85, vis: true, lookAtPlayer: true });
@@ -584,7 +591,8 @@ function warnFar() {
 function vacuumStep(dt) {
   if (G.tangled || !(input.use && tool === 'vacuum')) return false;
   if (!aim.ok) { warnFar(); return true; }
-  G.tangle += dt * 0.085;
+  const calm = G.phase === 'clean'; // no jams once she's back
+  if (calm) G.tangle += dt * 0.085;
   const r = 0.15;
   for (const h of G.hairs) {
     if (h.state !== 'floor') continue;
@@ -595,7 +603,7 @@ function vacuumStep(dt) {
       continue;
     }
     collect(h, 'suck'); G.sucks++;
-    G.tangle += h.len > 0.2 ? 0.035 : 0.012;
+    if (calm) G.tangle += h.len > 0.2 ? 0.035 : 0.012;
   }
   if (G.tangle >= 1) {
     G.tangle = 1; G.tangled = true; G.spin = 0; G.lastDir = null;
@@ -666,6 +674,7 @@ function replaceAll() { for (const h of G.hairs) if (h.state !== 'gone') placeHa
 function interact() {
   const p = G.interact;
   if (!p) return;
+  if (p === 'door') { finishAct(true); return; }
   if (p === 'rug') {
     if (G.rugWant === 0) {
       G.rugWant = 1; rugDown = false;
@@ -823,6 +832,8 @@ function thought(text, dur = 3, pic = false) {
 /* ================= the surprise ================= */
 function startReveal() {
   G.phase = 'reveal';
+  if (G.tangled) { G.tangled = false; $('untangle').classList.add('hidden'); }
+  G.tangle = 0;
   sfx.bang();
   G.doorWant = 1; G.door = 0.85;
   shake(0.35);
@@ -837,7 +848,7 @@ function startReveal() {
     { who: 'man', text: '…누구세요?' },
     { who: 'inner', text: '(…저 꼬불꼬불한 파마머리. 아까 그 꼬불털…!)', pic: true }
   ];
-  G.qT = 0; G.qWait = 0; G.qHinted = false;
+  G.qT = 0; G.qWait = 0; G.qHinted = false; G.revealAt = G.time;
 }
 function onScreen(a) {
   const v = new THREE.Vector3(a.x, 1.1, a.z).project(R.camera);
@@ -846,7 +857,7 @@ function onScreen(a) {
 function tickReveal(dt) {
   if (G.qT > 0) { G.qT -= dt; return; }
   const q = G.revealQ[0];
-  if (!q) { showChoice(); return; }
+  if (!q) { startAftermath(); return; }
   if (q.who === 'inner') {
     G.revealQ.shift(); thought(q.text, 2.8, !!q.pic); G.qT = 3; return;
   }
@@ -863,42 +874,19 @@ function tickReveal(dt) {
   say(a, q.text, 2.4);
   G.qT = 2.5;
 }
-function showChoice() {
-  G.phase = 'choice';
-  input.use = false; input.keys = {}; sfx.vac(false);
-  if (document.pointerLockElement) document.exitPointerLock();
-  $('pause').classList.add('hidden');
-  $('choice').classList.remove('hidden');
+// after the reveal: no menu. new tools show up in the bar and the player does whatever they want
+// until they walk out the door (or press 끝내기).
+const ACT_TOOLS = ['hammer', 'lighter', 'cry'];
+function startAftermath() {
+  G.phase = 'act';
+  G.stats = { smash: 0, fire: 0, cry: 0, cleaned: 0, start: remaining() };
+  G.actLineT = 3; G.actHold = 0; G.fled = false;
+  gameEl.classList.add('aftermath');
+  thought('(……)', 2.5);
+  setTimeout(() => { if (G && G.phase === 'act') toast(isTouch ? '도구를 골라 마음대로. 문에서 ✋ 누르면 끝' : '도구(1~6, 휠)를 골라 마음대로. 문에서 E 누르면 끝'); }, 2600);
+  sfx.click();
 }
-document.querySelectorAll('#choice [data-end]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); chooseEnding(b.dataset.end); }));
-
-const ACTS = {
-  smash: { use: '🔨 때리기', need: 8, goal: n => `🔨 가구를 때려 부수자 ${n}/8`, pause: '망치를 들었다' },
-  cry: { use: '😢 울기', need: 5, goal: n => `😢 누르고 있으면 눈물이… ${Math.min(100, Math.round(n / 5 * 100))}%`, pause: '눈물이 차오른다' },
-  fire: { use: '🔥 불붙이기', need: 5, goal: n => `🔥 라이터로 불을 붙이자 ${n}/5`, pause: '라이터를 꺼냈다' },
-  leave: { use: '🚪 문 열기', need: 1, goal: () => '🚪 문으로 걸어가서 나가자', pause: '조용히 나가자' }
-};
-function chooseEnding(id) {
-  $('choice').classList.add('hidden');
-  const g = G.girl, m = G.man;
-  G.endT = 0;
-  if (id === 'clean') {
-    G.ending = id;
-    G.phase = 'keepclean';
-    thought('(…일단 청소부터 끝내자.)', 3);
-    g.shock = false; m.shock = false;
-    if (remaining() === 0) { G.endT = -2; G.phase = 'ending'; setTimeout(() => say(g, '…다 치운 거야? 미안해…', 2.5), 600); return; }
-  } else {
-    G.phase = 'act'; G.act = id; G.actN = 0; G.actHold = 0; G.actLineT = 2;
-    if (id === 'smash') { thought('(…다 부숴버리겠어.)', 3); say(g, '자, 자기야… 그거 내려놔…', 2.6); }
-    else if (id === 'cry') { thought('(…청소는 왜 했을까.)', 3.5); say(g, '자, 자기야…?', 2.6); }
-    else if (id === 'fire') { thought('(…다 태워버릴 거야.)', 3); say(m, '저, 저기요…? 라이터는 왜…', 2.6); }
-    else { thought('(……나가자.)', 3); say(g, '자, 자기야 잠깐만…!', 2.6); }
-  }
-  input.use = false; input.usePrev = false;
-  if (isTouch) setPaused(false);
-  else { $('pauseTitle').textContent = id === 'clean' ? '계속 청소하기' : ACTS[id].pause; setPaused(true); }
-}
+function act(kind) { if (G.actLineT > 0.6) G.actLineT = 0.6; G.lastAct = kind; }
 const furnRay = new THREE.Raycaster();
 function rayFirst(targets, max) {
   furnRay.setFromCamera(center, R.camera);
@@ -906,78 +894,100 @@ function rayFirst(targets, max) {
   return hit && hit.distance <= max ? hit : null;
 }
 function tickAct(dt, pressed) {
-  const id = G.act, g = G.girl, m = G.man;
+  const g = G.girl, m = G.man, S = G.stats;
   G.actLineT -= dt;
-  const react = (a, lines) => { if (G.actLineT <= 0 && a.vis) { say(a, pick(lines), 2.2); G.actLineT = rand(2.5, 4); } };
-  if (id === 'smash') {
-    if (pressed) {
-      G.hand.swing = 1;
-      const hit = rayFirst(R.furnMeshes, 2.3);
-      if (hit) {
-        const mesh = hit.object, cp = R.camera.position;
-        const dx = mesh.position.x - cp.x, dz = mesh.position.z - cp.z, dl = Math.hypot(dx, dz) || 1;
-        mesh.userData.v = { x: dx / dl * rand(2.5, 4.5) + rand(-1, 1), y: rand(2.5, 4.5), z: dz / dl * rand(2.5, 4.5) + rand(-1, 1), a: rand(-8, 8), b: rand(-8, 8) };
-        if (!mesh.userData.hit) { mesh.userData.hit = true; G.actN++; }
-        sfx.smash(); shake(0.15);
-        g.shock = m.shock = true;
-        G.actLineT = Math.min(G.actLineT, 0);
-        react(Math.random() < 0.6 ? g : m, ['꺄악!!', '자기야 그만해!!', '미, 미친…!', '진정해 자기야!!', '으악!']);
-      } else sfx.miss();
-    }
-  } else if (id === 'cry') {
-    if (input.use) {
-      G.actN += dt;
-      if (Math.random() < dt * 9) spawnTear();
-      $('tint').className = 'blue';
-      player.pitch = lerp(player.pitch, -0.9, dt * 0.6);
-      growPuddle(dt);
-      react(g, ['자기야… 울지 마…', '(훌쩍)', '내가… 미안해…', '자기야…']);
-    } else if (G.actN < ACTS.cry.need) $('tint').className = '';
-  } else if (id === 'fire') {
-    R.lighter.userData.on = input.use;
-    if (input.use) {
-      const hit = rayFirst(R.aimTargets, 2.2);
-      if (hit) {
-        G.actHold += dt;
-        if (G.actHold >= 0.5) {
-          G.actHold = 0; G.actN++;
-          for (let i = 0; i < 3; i++) spawnFlameAt(hit.point.x + rand(-0.15, 0.15), hit.point.y, hit.point.z + rand(-0.15, 0.15), rand(0.5, 1.1));
-          sfx.whoosh();
-          $('tint').className = 'fire';
-          g.shock = m.shock = true;
-          G.actLineT = Math.min(G.actLineT, 0);
-          react(Math.random() < 0.5 ? g : m, ['불, 불이야!!', '자기야 미쳤어?!', '으아악 소화기!!', '꺄아악!!']);
-        }
-      } else if (G.farWarnT <= 0) { G.farWarnT = 1.5; toast('더 가까이 가서 불을 붙여요'); }
-    } else G.actHold = 0;
-    // fire spreads a little on its own
-    if (R.flames.length && R.flames.length < 90 && Math.random() < dt * R.flames.length * 0.08) {
-      const f = pick(R.flames);
-      spawnFlameAt(f.position.x + rand(-0.4, 0.4), 0, f.position.z + rand(-0.4, 0.4), rand(0.5, 1.2));
-    }
-  } else if (id === 'leave') {
-    if (pressed) {
-      const hit = rayFirst([R.door, R.doorDark], 2.0);
-      if (hit) { G.actN = 1; G.doorWant = 1; sfx.doorOpen(); }
-      else toast('문까지 걸어가서 문을 보고 눌러요 🚪');
-    }
-    react(g, ['자기야 잠깐만…!', '내 말 좀 들어봐…', '가지 마…!']);
+  const react = (lines) => {
+    if (G.actLineT > 0) return;
+    const a = [g, m].filter(a => a.vis && !a.exitAfter && onScreen(a));
+    if (!a.length) return;
+    say(pick(a), pick(lines), 2.3); G.actLineT = rand(2.8, 4.5);
+  };
+  if (tool === 'hammer' && pressed) {
+    G.hand.swing = 1;
+    const hit = rayFirst(R.furnMeshes, 2.3);
+    if (hit) {
+      const mesh = hit.object, cp = R.camera.position;
+      const dx = mesh.position.x - cp.x, dz = mesh.position.z - cp.z, dl = Math.hypot(dx, dz) || 1;
+      mesh.userData.v = { x: dx / dl * rand(2.5, 4.5) + rand(-1, 1), y: rand(2.5, 4.5), z: dz / dl * rand(2.5, 4.5) + rand(-1, 1), a: rand(-8, 8), b: rand(-8, 8) };
+      mesh.userData.hit = true; S.smash++;
+      sfx.smash(); shake(0.15);
+      g.shock = m.shock = true; act('smash');
+    } else sfx.miss();
   }
-  if (G.actN >= ACTS[id].need) finishAct();
+  R.lighter.userData.on = tool === 'lighter' && input.use;
+  if (tool === 'lighter' && input.use) {
+    const hit = rayFirst(R.aimTargets, 2.2);
+    if (hit) {
+      G.actHold += dt;
+      if (G.actHold >= 0.5) {
+        G.actHold = 0; S.fire++;
+        for (let i = 0; i < 3; i++) spawnFlameAt(hit.point.x + rand(-0.15, 0.15), hit.point.y, hit.point.z + rand(-0.15, 0.15), rand(0.5, 1.1));
+        sfx.whoosh(); g.shock = m.shock = true; act('fire');
+      }
+    } else if (G.farWarnT <= 0) { G.farWarnT = 1.5; toast('더 가까이 가서 불을 붙여요'); }
+  } else G.actHold = 0;
+  if (tool === 'cry' && input.use) {
+    S.cry += dt;
+    if (Math.random() < dt * 9) spawnTear();
+    player.pitch = lerp(player.pitch, -0.9, dt * 0.6);
+    growPuddle(dt);
+    if (G.lastAct !== 'cry') act('cry');
+  }
+  $('tint').className = R.flames.length > 4 ? 'fire' : tool === 'cry' && input.use ? 'blue' : '';
+  // fire spreads a little on its own
+  if (R.flames.length && R.flames.length < 90 && Math.random() < dt * R.flames.length * 0.08) {
+    const f = pick(R.flames);
+    spawnFlameAt(f.position.x + rand(-0.4, 0.4), 0, f.position.z + rand(-0.4, 0.4), rand(0.5, 1.2));
+  }
+  // they don't stick around for long once things get wild
+  if (!G.fled && (R.flames.length > 14 || S.smash >= 7)) {
+    G.fled = true;
+    const fire = R.flames.length > 14;
+    say(g, fire ? '꺄아아악!! 불이야!!' : '자기야 미쳤어?!', 2.2); say(m, fire ? '튀어!!' : '저, 전 이만…!!', 2.2);
+    for (const a of [g, m]) if (a.vis) { a.lookAtPlayer = false; a.shock = true; a.tx = DOOR_IN.x; a.tz = DOOR_IN.z; a.speed = 1.8; a.exitAfter = true; }
+    G.doorWant = 1; G.actLineT = 99;
+  }
+  if (!G.fled) {
+    const L = {
+      smash: ['꺄악!!', '자기야 그만해!!', '미, 미친…!', '진정해 자기야!!', '으악!'],
+      fire: ['불, 불이야!!', '자기야 미쳤어?!', '으아악 소화기!!', '꺄아악!!'],
+      cry: ['자기야… 울지 마…', '(훌쩍)', '내가… 미안해…', '자기야…'],
+      clean: ['청소… 해준 거였어…?', '자기야… 말 좀 해봐…', '그게… 그런 사이 아니야…', '자기야 나 좀 봐…']
+    };
+    react(L[G.lastAct] || L.clean);
+    if (G.actLineT <= 0) G.lastAct = null;
+  }
+  // the other guy slips out eventually anyway
+  if (G.time - G.revealAt > 14 && m.vis && !m.exitAfter) {
+    say(m, '저… 저는 이만 가볼게요…', 2.5);
+    m.lookAtPlayer = false; m.shock = false; m.tx = DOOR_IN.x; m.tz = DOOR_IN.z; m.exitAfter = true; G.doorWant = 1;
+  }
+  if (remaining() === 0 && !G.allClean) { G.allClean = true; thought('(…깨끗하다.)', 2.5); if (g.vis && !g.exitAfter) say(g, '…다 치웠네. 미안해, 자기야.', 2.8); }
 }
-function finishAct() {
-  const id = G.act, g = G.girl, m = G.man;
-  G.phase = 'ending'; G.ending = id; G.endT = 0;
+// the ending is whatever the player did the most of
+function pickEnding() {
+  const S = G.stats;
+  if (S.fire >= 3) return 'fire';
+  if (S.smash >= 5) return 'smash';
+  if (S.cry >= 4) return 'cry';
+  if (remaining() === 0 && S.start > 0) return 'clean';
+  return 'leave';
+}
+function finishAct(viaDoor) {
+  if (G.phase !== 'act') return;
+  const id = pickEnding(), g = G.girl, m = G.man;
+  G.phase = 'ending'; G.ending = id; G.endT = 0; G.exitDoor = !!viaDoor;
   input.use = false; sfx.vac(false);
+  gameEl.classList.remove('aftermath');
   if (document.pointerLockElement) document.exitPointerLock();
-  if (id === 'smash') { thought('(…후.)', 2.5); G.endDur = 2.8; }
-  else if (id === 'cry') { thought('(…)', 2.5); G.endDur = 3; }
-  else if (id === 'fire') {
+  if (viaDoor) { G.doorWant = 1; sfx.doorOpen(); }
+  if (id === 'fire') {
     for (let i = 0; i < 25; i++) spawnFlameAt(rand(RX0 + 0.3, RX1 - 0.3), 0, rand(RZ0 + 0.3, RZ1 - 0.3), rand(0.8, 1.8));
-    say(g, '꺄아아악!!', 2); say(m, '튀어!!', 2);
-    for (const a of [g, m]) { a.lookAtPlayer = false; a.shock = true; a.tx = DOOR_IN.x; a.tz = DOOR_IN.z; a.speed = 1.8; a.exitAfter = true; }
-    G.doorWant = 1; G.endDur = 3.4;
-  } else if (id === 'leave') { G.endDur = 2.2; }
+    $('tint').className = 'fire';
+  } else if (id === 'cry') thought('(…)', 2.2);
+  else if (id === 'smash') thought('(…후.)', 2.2);
+  if (g.vis && !g.exitAfter && id !== 'fire') say(g, '자, 자기야 잠깐만…!', 2);
+  G.endDur = 2.4;
 }
 function physicsStep(dt) {
   for (const mesh of R.furnMeshes) {
@@ -1003,8 +1013,8 @@ function tickEnding(dt) {
   G.endT += dt;
   const id = G.ending;
   if (id === 'cry' && Math.random() < dt * 5) spawnTear();
-  if (id === 'fire' && G.endT > 2) $('fade').classList.add('on');
-  if (id === 'leave') {
+  if (!G.exitDoor && G.endT > 1.2) $('fade').classList.add('on');
+  if (G.exitDoor) {
     player.x = lerp(player.x, DOOR_IN.x, dt * 1.5); player.z = lerp(player.z, DOOR_IN.z - 0.2, dt * 1.5);
     if (G.endT > 0.6) $('fade').classList.add('on');
   }
@@ -1043,7 +1053,7 @@ function resetScene() {
   R.flames = []; R.fireLight.intensity = 0;
   $('tint').className = ''; $('fade').classList.remove('on'); $('game').classList.remove('shaking');
   document.querySelectorAll('.tear').forEach(t => t.remove());
-  $('choice').classList.add('hidden'); $('untangle').classList.add('hidden'); $('thought').classList.remove('show');
+  gameEl.classList.remove('aftermath'); $('untangle').classList.add('hidden'); $('thought').classList.remove('show');
 }
 let shakeTimer = 0;
 function shake(sec) { const c = $('game'); c.classList.add('shaking'); clearTimeout(shakeTimer); shakeTimer = setTimeout(() => c.classList.remove('shaking'), sec * 1000); }
@@ -1061,16 +1071,19 @@ function update(dt) {
     updateAim();
     const pressed = input.use && !input.usePrev;
     input.usePrev = input.use;
-    G.interact = ph !== 'act' && aim.prop && (G.rugK === G.rugWant) && (G.plantK === G.plantWant) ? aim.prop : null;
+    G.interact = aim.prop && !ACT_TOOLS.includes(tool) && (G.rugK === G.rugWant) && (G.plantK === G.plantWant) ? aim.prop : null;
+    if (ph === 'act' && rayFirst([R.door, R.doorDark], 2.0)) G.interact = 'door';
     if (input.interact) { input.interact = false; interact(); }
     if (ph === 'act') tickAct(dt, pressed);
-    else {
+    if (G.phase === ph) {
+      const before = remaining();
       if (pressed && tool === 'tweezers') useTweezers();
       sfx.vac(vacuumStep(dt) && aim.ok);
       broomStep(dt);
+      if (ph === 'act' && remaining() < before) { G.stats.cleaned++; if (!G.lastAct) act('clean'); }
     }
   } else { sfx.vac(false); movePlayer(0); }
-  physicsStep(dt); flamesStep(dt); if (ph !== 'act' && ph !== 'ending') propsStep(dt);
+  physicsStep(dt); flamesStep(dt); if (ph !== 'ending') propsStep(dt);
   if (ph === 'story') storyTick(dt);
 
   updateActors(dt);
@@ -1096,28 +1109,8 @@ function update(dt) {
     G.revealT -= dt;
     if (G.revealT <= 0) startReveal();
   } else if (ph === 'reveal') tickReveal(dt);
-  else if (ph === 'keepclean') tickKeepClean(dt);
   else if (ph === 'ending') tickEnding(dt);
 }
-function tickKeepClean(dt) {
-  const g = G.girl, m = G.man;
-  G.manLeaveT -= dt;
-  if (G.manLeaveT <= 0 && m.vis && !m.exitAfter) {
-    say(m, '저… 저는 이만 가볼게요…', 2.5);
-    m.lookAtPlayer = false; m.shock = false; m.tx = DOOR_IN.x; m.tz = DOOR_IN.z; m.exitAfter = true; G.doorWant = 1;
-  }
-  G.keepLineT -= dt;
-  if (G.keepLineT <= 0 && onScreen(g)) {
-    say(g, pick(['자기야… 말 좀 해봐…', '그게… 그런 사이 아니야…', '청소… 해준 거였어…?', '(훌쩍)', '자기야 나 좀 봐…']), 2.6);
-    G.keepLineT = rand(6, 9);
-  }
-  if (remaining() === 0) {
-    G.phase = 'ending'; G.endT = -1.5; G.endDur = 1;
-    say(g, '…다 치웠네. 미안해, 자기야.', 2.8);
-    thought('(…깨끗하다.)', 2.5);
-  }
-}
-
 function movePlayer(dt) {
   let f = 0, s = 0;
   const k = input.keys;
@@ -1156,7 +1149,7 @@ function updateActors(dt) {
     else if (d > sp && d > 0.01) { a.x += dx / d * sp; a.z += dz / d * sp; a.walking = true; a.f = Math.atan2(dz, dx); }
     else {
       a.x = a.tx; a.z = a.tz; a.walking = false;
-      if (a.exitAfter) { a.vis = false; a.exitAfter = false; if (!G.girl.vis && !G.man.vis || a.kind === 'man' && G.phase === 'keepclean' || G.phase === 'story') G.doorWant = 0; }
+      if (a.exitAfter) { a.vis = false; a.exitAfter = false; if (!G.girl.vis && !G.man.vis || a.kind === 'man' && G.phase === 'act' && G.girl.vis || G.phase === 'story') G.doorWant = 0; }
     }
     if (a.lookAtPlayer && !a.walking) a.f = Math.atan2(player.z - a.z, player.x - a.x);
   }
@@ -1245,11 +1238,11 @@ function renderActors(dt) {
   }
 }
 function renderHand(dt) {
-  const H = G.hand, show = PLAYABLE[G.phase], act = G.phase === 'act' ? G.act : null;
+  const H = G.hand, show = PLAYABLE[G.phase];
   R.hand.visible = !!show;
-  R.tw.visible = !act && tool === 'tweezers'; R.vac.visible = !act && tool === 'vacuum'; R.brm.visible = !act && tool === 'broom';
-  R.hammer.visible = act === 'smash'; R.lighter.visible = act === 'fire';
-  R.lFlame.visible = act === 'fire' && input.use;
+  R.tw.visible = tool === 'tweezers'; R.vac.visible = tool === 'vacuum'; R.brm.visible = tool === 'broom';
+  R.hammer.visible = tool === 'hammer'; R.lighter.visible = tool === 'lighter';
+  R.lFlame.visible = tool === 'lighter' && input.use;
   H.swing = Math.max(0, (H.swing || 0) - dt * 4);
   R.hammer.rotation.x = 0.2 - Math.sin(H.swing * Math.PI) * 1.2;
   R.torch.visible = flashOn;
@@ -1288,16 +1281,12 @@ function updateHud() {
   crossEl.style.display = play ? '' : 'none';
   remainEl.textContent = remaining();
   timeEl.textContent = (G.cleanTime != null ? G.cleanTime : G.time).toFixed(1);
-  if (G.phase === 'act') {
-    phaseEl.textContent = ACTS[G.act].goal(G.actN); phaseEl.classList.add('warn');
-    document.querySelector('.tools').style.visibility = 'hidden';
-    useBtn.textContent = ACTS[G.act].use;
-  } else useBtn.textContent = '사용';
-  const PH = { clean: G.cleanTime != null ? '✨ 다 치웠다!' : '🤫 몰래 청소 중', reveal: '😳 …!?', choice: '😶 …', keepclean: '😶 어색하게 청소 중', ending: '…' };
-  if (G.phase !== 'act') { phaseEl.textContent = PH[G.phase] || ''; phaseEl.classList.toggle('warn', G.phase === 'reveal'); }
+  useBtn.textContent = { hammer: '🔨', lighter: '🔥', cry: '😢' }[tool] || '사용';
+  const PH = { clean: G.cleanTime != null ? '✨ 다 치웠다!' : '🤫 몰래 청소 중', reveal: '😳 …!?', act: '😶 …', ending: '…' };
+  phaseEl.textContent = PH[G.phase] || ''; phaseEl.classList.toggle('warn', G.phase === 'reveal');
   const mag = magOn || input.magHold;
   crossEl.className = (mag ? 'mag ' : '') + (aim.ok ? '' : aim.reason);
-  const PROP_TXT = { rug: G.rugWant ? '카펫 다시 깔기' : '카펫 걷어보기', plant: G.plantWant ? '화분 제자리에' : '화분 옮겨보기' };
+  const PROP_TXT = { rug: G.rugWant ? '카펫 다시 깔기' : '카펫 걷어보기', plant: G.plantWant ? '화분 제자리에' : '화분 옮겨보기', door: '나가기 (끝내기)' };
   tipEl.textContent = play && G.interact ? (isTouch ? '✋ ' : '[E] ') + PROP_TXT[G.interact] : play && !aim.ok && aim.reason === 'far' ? '너무 멀어요' : '';
   actBtn.style.display = isTouch && play && G.interact ? 'block' : 'none';
   if (G.interact) actBtn.textContent = '✋';
@@ -1373,6 +1362,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Digit1') setTool('tweezers');
   else if (e.code === 'Digit2') setTool('vacuum');
   else if (e.code === 'Digit3') setTool('broom');
+  else if (/^Digit[456]$/.test(e.code) && G && G.phase === 'act') setTool(ACT_TOOLS[+e.code[5] - 4]);
   else if (e.code === 'KeyZ') input.magHold = true;
   else if (e.code === 'KeyF') toggle('flash');
   else if (e.code === 'KeyC' || e.code === 'ControlLeft') toggle('prone');
@@ -1388,13 +1378,13 @@ window.addEventListener('blur', () => { input.keys = {}; input.use = false; });
 const TOOL_ORDER = ['tweezers', 'vacuum', 'broom'];
 let wheelT = 0;
 window.addEventListener('wheel', e => {
-  if (!inPlay() || G.phase === 'act' || !document.pointerLockElement) return;
+  if (!inPlay() || !document.pointerLockElement) return;
   e.preventDefault();
   const now = performance.now();
   if (now - wheelT < 120 || !e.deltaY) return;
   wheelT = now;
-  const i = TOOL_ORDER.indexOf(tool);
-  setTool(TOOL_ORDER[(i + (e.deltaY > 0 ? 1 : -1) + 3) % 3]);
+  const order = G.phase === 'act' ? TOOL_ORDER.concat(ACT_TOOLS) : TOOL_ORDER, n = order.length;
+  setTool(order[(order.indexOf(tool) + (e.deltaY > 0 ? 1 : -1) + n) % n]);
 }, { passive: false });
 
 // touch
@@ -1559,7 +1549,7 @@ function loop(now) {
 
 if (DEBUG) window.__game = {
   step(sec) { for (let t = 0; t < sec && !G.over; t += 1 / 30) update(1 / 30); },
-  get G() { return G; }, player, input, setTool, toggle, get aim() { return aim; }, setPaused, nextLine, chooseEnding, interact() { input.interact = true; }, get R() { return R; }
+  get G() { return G; }, player, input, setTool, toggle, get aim() { return aim; }, setPaused, nextLine, finishAct, interact() { input.interact = true; }, get R() { return R; }
 };
 buildChips(); showBest();
 requestAnimationFrame(loop);

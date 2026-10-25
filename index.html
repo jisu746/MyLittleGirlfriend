@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="build" content="5">
+<meta name="build" content="6">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>여자친구 머리카락 청소하기</title>
 <meta name="description" content="여자친구가 흘리고 다니는 머리카락을 1인칭으로 전부 치워라! 핀셋, 청소기, 빗자루, 돋보기, 손전등.">
@@ -95,12 +95,6 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
 #dlg .next{position:absolute;right:16px;bottom:8px;color:var(--pink);animation:blink 1s infinite}
 #dlg .skip{position:absolute;top:max(14px,env(safe-area-inset-top));right:14px;border:0;background:rgba(255,255,255,.85);border-radius:999px;padding:6px 14px;font-size:14px;color:var(--ink)}
 @keyframes blink{50%{opacity:.2}}
-#choice{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(30,15,20,.55);padding:16px}
-#choice.hidden{display:none}
-#choice .panel h2{margin-bottom:12px}
-#choice .opts{display:grid;gap:8px}
-#choice .opts button{border:0;border-radius:16px;padding:12px 14px;font-size:18px;background:var(--chip);color:var(--ink);text-align:left}
-#choice .opts button:hover{background:#ffe0ea}
 #fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity 1.2s}
 #fade.on{opacity:1}
 #tint{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity 1s}
@@ -119,7 +113,9 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
 .tool.on{border-color:var(--pink);background:#fff0f5}
 .tool .key{position:absolute;top:2px;left:6px;font-size:10px;color:var(--sub)}
 .tool.sep{margin-left:8px}
-@media (max-width:520px){.tools{gap:4px}.tool{min-width:0;width:56px;padding:4px 2px 3px;font-size:11px;border-radius:12px}.tool .ic{font-size:18px}.tool.sep{margin-left:4px}
+.tool.act-only{display:none}.aftermath .tool.act-only{display:flex}.aftermath .tool[data-toggle=mag],.aftermath .tool[data-toggle=hint]{display:none}
+.aftermath .tool.act-only{animation:pop .5s ease-out}@keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+@media (max-width:520px){.tools{gap:4px;left:8px;right:8px;transform:none;justify-content:center}.tool{min-width:0;flex:1 1 0;max-width:56px;padding:4px 1px 3px;font-size:10.5px;border-radius:12px;white-space:nowrap;overflow:hidden}.tool .ic{font-size:18px}.tool.sep{margin-left:4px}
   #joy{bottom:96px;left:16px;width:110px;height:110px}#useBtn{bottom:100px;right:16px;width:86px;height:86px}}
 .gauge{width:80%;height:4px;border-radius:2px;background:#eadde2;overflow:hidden}
 .gauge i{display:block;height:100%;width:0;background:#7bd389}
@@ -212,6 +208,9 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
     <button class="tool on" data-tool="tweezers"><span class="key">1</span><span class="ic">🥢</span>핀셋</button>
     <button class="tool" data-tool="vacuum"><span class="key">2</span><span class="ic">🌀</span>청소기<div class="gauge"><i id="tangleBar"></i></div></button>
     <button class="tool" data-tool="broom"><span class="key">3</span><span class="ic">🧹</span>빗자루</button>
+    <button class="tool act-only" data-tool="hammer"><span class="key">4</span><span class="ic">🔨</span>망치</button>
+    <button class="tool act-only" data-tool="lighter"><span class="key">5</span><span class="ic">🔥</span>라이터</button>
+    <button class="tool act-only" data-tool="cry"><span class="key">6</span><span class="ic">😢</span>울기</button>
     <button class="tool sep" data-toggle="mag"><span class="key">Z</span><span class="ic">🔍</span>돋보기</button>
     <button class="tool" data-toggle="flash"><span class="key">F</span><span class="ic">🔦</span>손전등</button>
     <button class="tool" data-toggle="prone"><span class="key">C</span><span class="ic">🛌</span>엎드리기</button>
@@ -221,13 +220,6 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
     <canvas id="roller" width="400" height="400"></canvas>
     <p id="untangleTip">머리카락이 롤러에 감겼다!<br>빙빙 돌려서 풀어요 🌀</p>
   </div>
-  <div id="choice" class="hidden"><div class="panel"><h2>어떻게 할까…?</h2><div class="opts">
-    <button data-end="smash">💥 방을 부순다</button>
-    <button data-end="cry">😢 눈물을 흘린다</button>
-    <button data-end="fire">🔥 집에 불을 지른다</button>
-    <button data-end="leave">🚪 조용히 떠난다</button>
-    <button data-end="clean">🧹 계속 청소한다</button>
-  </div></div></div>
   <div id="dlg" class="hidden"><button class="skip" id="skipBtn">건너뛰기 ⏭</button><div class="box" id="dlgBox"><span class="who" id="dlgWho"></span><span id="dlgTx"></span><span class="next">▼</span></div></div>
   <div id="fade"></div>
   <div id="pause" class="overlay hidden">
@@ -239,6 +231,7 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
         <tr><td>도구 사용</td><td>왼쪽 클릭 (청소기·빗자루는 누른 채로)</td></tr>
         <tr><td>도구 바꾸기</td><td>마우스 휠, 또는 1 핀셋 · 2 청소기 · 3 빗자루</td></tr>
         <tr><td>카펫·화분 들추기</td><td>E</td></tr>
+        <tr><td>그 순간 이후</td><td>4 망치 · 5 라이터 · 6 울기, 문에서 E로 끝내기</td></tr>
         <tr><td>돋보기</td><td>Z 또는 오른쪽 클릭 (누르는 동안)</td></tr>
         <tr><td>손전등 / 엎드리기</td><td>F / C</td></tr>
         <tr><td>힌트</td><td>H (20초마다)</td></tr>
@@ -268,8 +261,8 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
   </div>
 </div>
 
-<script src="lib/three.min.js?v=5"></script>
-<script src="js/girl.js?v=5"></script>
-<script src="js/game.js?v=5"></script>
+<script src="lib/three.min.js?v=6"></script>
+<script src="js/girl.js?v=6"></script>
+<script src="js/game.js?v=6"></script>
 </body>
 </html>
