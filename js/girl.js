@@ -153,7 +153,7 @@ function drawGirl(c, L, o) {
   c.fillStyle = rgba('#a05a40', 0.12); c.beginPath(); c.ellipse(0, -121, 7, 2, 0, 0, Math.PI * 2); c.fill();
 
   // eyes
-  const blink = (t % 4.1) < 0.13;
+  const blink = !o.shock && (t % 4.1) < 0.13;
   const ey = -136;
   for (const s of [-1, 1]) {
     const ex = s * 5.8 + fx * 0.3;
@@ -183,10 +183,12 @@ function drawGirl(c, L, o) {
   c.beginPath(); c.ellipse(-8.5 + fx * 0.3, -130.5, 3.4, 1.8, 0, 0, Math.PI * 2); c.ellipse(8.5 + fx * 0.3, -130.5, 3.4, 1.8, 0, 0, Math.PI * 2); c.fill();
   c.strokeStyle = '#c0606e'; c.lineWidth = 1.2;
   c.beginPath();
-  if (o.mad) { c.moveTo(-2.4 + fx * 0.4, -125.2); c.quadraticCurveTo(fx * 0.4, -126.6, 2.4 + fx * 0.4, -125.2); }
+  if (o.shock) { c.fillStyle = '#7a2f3a'; c.ellipse(fx * 0.4, -125.6, 1.8, 2.3, 0, 0, Math.PI * 2); c.fill(); }
+  else if (o.mad) { c.moveTo(-2.4 + fx * 0.4, -125.2); c.quadraticCurveTo(fx * 0.4, -126.6, 2.4 + fx * 0.4, -125.2); }
   else { c.moveTo(-2.2 + fx * 0.4, -126.4); c.quadraticCurveTo(fx * 0.4, -124.6, 2.2 + fx * 0.4, -126.4); }
   c.stroke();
   if (o.mad) { c.fillStyle = '#e04848'; c.font = 'bold 10px sans-serif'; c.fillText('💢', 10, -152); }
+  if (o.shock) sweat(c, 15, -150);
 
   // front hair
   frontHair(c, L, sway, hairGrad);
@@ -285,5 +287,97 @@ function frontHair(c, L, sway, hairGrad) {
   c.beginPath(); c.arc(0, -147, 12, Math.PI * 1.2, Math.PI * 1.5); c.stroke();
 }
 
-window.GirlArt = { drawGirl, GIRL_OPTIONS, shade };
+function sweat(c, x, y) {
+  c.fillStyle = 'rgba(140,200,255,.9)';
+  c.beginPath(); c.moveTo(x, y - 6); c.quadraticCurveTo(x + 4, y, x, y + 2); c.quadraticCurveTo(x - 4, y, x, y - 6); c.fill();
+}
+
+// 그 남자: 꼬불꼬불 파마머리
+function drawMan(c, o) {
+  const t = o.t || 0, walking = !!o.walking, back = !!o.back;
+  const ph = t * 7, swing = walking ? Math.sin(ph) : 0;
+  const bob = walking ? -Math.abs(Math.cos(ph)) * 2.2 : Math.sin(t * 1.6) * 0.6;
+  const skin = '#efc6a4', skinS = shade(skin, -0.12), hair = '#2b1d17', tee = '#2f3646', jeans = '#4a6a9a';
+  c.save();
+  c.fillStyle = 'rgba(40,20,10,.22)';
+  c.beginPath(); c.ellipse(0, 0, 22, 5, 0, 0, Math.PI * 2); c.fill();
+  c.translate(0, bob);
+  // legs
+  for (const [hx, s] of [[-6.5, 1], [6.5, -1]]) {
+    c.save(); c.translate(hx, -84); c.rotate(swing * 0.3 * s);
+    c.fillStyle = jeans; c.beginPath(); c.moveTo(-6.5, 0); c.lineTo(6.5, 0); c.lineTo(5, 78); c.lineTo(-5, 78); c.closePath(); c.fill();
+    c.fillStyle = '#f2f2f2'; c.beginPath(); c.ellipse(0.5, 80, 7, 4, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  // arms
+  for (const s of [-1, 1]) {
+    c.save(); c.translate(s * 19, -122); c.rotate(-swing * 0.35 * s + s * 0.1);
+    c.fillStyle = tee; c.fillRect(-5, -1, 10, 14);
+    c.fillStyle = skin; c.beginPath(); c.moveTo(-3.6, 12); c.lineTo(3.6, 12); c.lineTo(3, 44); c.lineTo(-3, 44); c.closePath(); c.fill();
+    c.beginPath(); c.ellipse(0, 47, 3.6, 4.2, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+  // torso
+  const g = c.createLinearGradient(-22, 0, 22, 0);
+  g.addColorStop(0, shade(tee, -0.15)); g.addColorStop(0.5, tee); g.addColorStop(1, shade(tee, -0.2));
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-20, -124); c.quadraticCurveTo(0, -128, 20, -124); c.lineTo(17, -82); c.lineTo(-17, -82); c.closePath(); c.fill();
+  c.fillStyle = '#3b2a20'; c.fillRect(-17, -86, 34, 4);
+  if (!back) { c.fillStyle = 'rgba(255,255,255,.75)'; c.font = 'bold 8px sans-serif'; c.textAlign = 'center'; c.fillText('COOL', 0, -102); }
+  // neck + head
+  c.fillStyle = skinS; c.fillRect(-4, -136, 8, 13);
+  c.fillStyle = skin;
+  c.beginPath(); c.moveTo(-15, -152); c.bezierCurveTo(-16, -172, 16, -172, 15, -152);
+  c.bezierCurveTo(15, -140, 9, -132, 0, -131); c.bezierCurveTo(-9, -132, -15, -140, -15, -152); c.fill();
+  if (!back) {
+    c.fillStyle = skinS; c.beginPath(); c.ellipse(-15.5, -149, 2.6, 4, 0, 0, Math.PI * 2); c.ellipse(15.5, -149, 2.6, 4, 0, 0, Math.PI * 2); c.fill();
+    const ey = -148;
+    for (const s of [-1, 1]) {
+      const ex = s * 6;
+      if (o.shock) {
+        c.fillStyle = '#fff'; c.beginPath(); c.arc(ex, ey, 3, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#222'; c.beginPath(); c.arc(ex, ey, 1, 0, Math.PI * 2); c.fill();
+      } else {
+        c.strokeStyle = '#222'; c.lineWidth = 1.6;
+        c.beginPath(); c.moveTo(ex - 3, ey); c.quadraticCurveTo(ex, ey - 1.6, ex + 3, ey); c.stroke();
+        c.fillStyle = '#222'; c.beginPath(); c.arc(ex, ey + 0.3, 1.2, 0, Math.PI * 2); c.fill();
+      }
+      c.strokeStyle = hair; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(ex - 3.6, ey - 5.2 - (o.shock ? 1.5 : 0)); c.lineTo(ex + 3.6, ey - 5.6 - (o.shock ? 1.5 : 0)); c.stroke();
+    }
+    c.strokeStyle = 'rgba(150,90,60,.5)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0.5, -144); c.lineTo(-0.6, -140.5); c.stroke();
+    c.strokeStyle = '#9a5a50'; c.lineWidth = 1.3; c.beginPath();
+    if (o.shock) { c.fillStyle = '#6a2a2a'; c.ellipse(0, -136.5, 2, 2.6, 0, 0, Math.PI * 2); c.fill(); }
+    else { c.moveTo(-3, -137); c.quadraticCurveTo(1, -135.4, 3.5, -138.2); c.stroke(); }
+    c.fillStyle = '#d9d9e6'; c.beginPath(); c.arc(-16, -144, 1.2, 0, Math.PI * 2); c.fill();
+    if (o.shock) sweat(c, 17, -160);
+  }
+  // perm: clusters of curls
+  const curls = back
+    ? [[-12, -166], [-4, -170], [5, -170], [12, -165], [-15, -157], [15, -157], [-13, -148], [13, -148], [-6, -160], [5, -160], [0, -150], [-8, -142], [8, -142]]
+    : [[-13, -164], [-5, -170], [4, -171], [12, -165], [-17, -156], [17, -156], [-9, -163], [8, -164], [0, -165]];
+  for (const [x, y] of curls) {
+    c.fillStyle = hair; c.beginPath(); c.arc(x, y, 6.2, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 0.9;
+    c.beginPath(); c.arc(x, y, 3.4, 0.4, 4.6); c.stroke();
+  }
+  c.restore();
+}
+
+// 꼬불털 확대 그림 (생각 말풍선용)
+function drawCurly(c, w, h, color) {
+  c.clearRect(0, 0, w, h);
+  c.strokeStyle = color || '#1a120e'; c.lineWidth = Math.max(1.5, w / 50); c.lineCap = 'round';
+  c.beginPath();
+  for (let i = 0; i <= 160; i++) {
+    const k = i / 160, a = k * Math.PI * 2 * 4.5;
+    const x = w * 0.14 + w * 0.66 * k + Math.cos(a) * w * 0.08 - w * 0.08;
+    const y = h * 0.5 + Math.sin(a) * h * 0.12 + Math.sin(k * 3) * h * 0.08;
+    i ? c.lineTo(x, y) : c.moveTo(x, y);
+  }
+  c.stroke();
+}
+
+window.GirlArt = { drawGirl, drawMan, drawCurly, GIRL_OPTIONS, shade };
 })();

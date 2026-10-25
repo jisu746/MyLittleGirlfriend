@@ -70,17 +70,47 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
 #toast{position:absolute;left:50%;top:64px;transform:translateX(-50%);background:rgba(74,54,64,.9);color:#fff;
   padding:8px 16px;border-radius:999px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 #toast.show{opacity:1}
-#speech{position:absolute;transform:translate(-50%,-100%);background:#fff;border:2px solid #f3b0c3;border-radius:14px;
+.speech{position:absolute;transform:translate(-50%,-100%);background:#fff;border:2px solid #f3b0c3;border-radius:14px;
   padding:5px 12px;font-size:15px;white-space:nowrap;pointer-events:none;display:none}
-#speech::after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#fff;border-bottom:0}
-#speech.mad{border-color:#e23b3b;color:#c42020}
+.speech::after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:#fff;border-bottom:0}
+.speech.mad{border-color:#e23b3b;color:#c42020}
 #flash{position:absolute;inset:0;background:radial-gradient(circle,rgba(255,0,0,0) 40%,rgba(255,0,0,.55));opacity:0;pointer-events:none;transition:opacity .4s}
 #flash.on{opacity:1;transition:none}
-#mystery{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%) scale(.8);background:#fff;border-radius:22px;padding:16px 22px;
-  text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:all .25s}
-#mystery.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-#mystery .q{font-size:38px}
-#mystery p{margin:4px 0 0;font-size:18px}
+#thought{position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);display:flex;align-items:center;gap:12px;
+  background:rgba(30,22,28,.82);color:#fff;border-radius:20px;padding:12px 18px;max-width:min(92vw,560px);opacity:0;pointer-events:none;transition:all .3s}
+#thought.show{opacity:1;transform:translateX(-50%)}
+#thought canvas{width:72px;height:72px;background:#f6ead8;border-radius:50%;border:3px solid #fff;flex:none;display:none}
+#thought.pic canvas{display:block}
+#thought .tx{font-size:17px;line-height:1.45}
+#thought .tx small{display:block;color:#c9b6c0;font-size:12px}
+#dlg{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:16px 16px max(24px,env(safe-area-inset-bottom));
+  background:linear-gradient(to top,rgba(30,20,25,.55),rgba(30,20,25,0) 45%);cursor:pointer}
+#dlg.hidden{display:none}
+#dlg .box{position:relative;background:rgba(255,255,255,.96);border-radius:20px;padding:22px 22px 18px;width:100%;max-width:640px;min-height:96px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:18px;line-height:1.5}
+#dlg .who{position:absolute;top:-14px;left:18px;background:var(--pink);color:#fff;border-radius:999px;padding:3px 14px;font-size:15px}
+#dlg .who.me{background:#6b7fd6}#dlg .who.nar{background:#8a7a82}
+#dlg .box.inner{background:rgba(30,22,28,.9);color:#fff}
+#dlg .next{position:absolute;right:16px;bottom:8px;color:var(--pink);animation:blink 1s infinite}
+#dlg .skip{position:absolute;top:max(14px,env(safe-area-inset-top));right:14px;border:0;background:rgba(255,255,255,.85);border-radius:999px;padding:6px 14px;font-size:14px;color:var(--ink)}
+@keyframes blink{50%{opacity:.2}}
+#choice{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(30,15,20,.55);padding:16px}
+#choice.hidden{display:none}
+#choice .panel h2{margin-bottom:12px}
+#choice .opts{display:grid;gap:8px}
+#choice .opts button{border:0;border-radius:16px;padding:12px 14px;font-size:18px;background:var(--chip);color:var(--ink);text-align:left}
+#choice .opts button:hover{background:#ffe0ea}
+#fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity 1.2s}
+#fade.on{opacity:1}
+#tint{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity 1s}
+#tint.blue{background:radial-gradient(circle,rgba(80,120,200,.15) 30%,rgba(40,60,140,.6));opacity:1}
+#tint.fire{background:radial-gradient(circle,rgba(255,160,0,.1) 30%,rgba(255,60,0,.55));opacity:1;animation:flick .15s infinite alternate}
+@keyframes flick{to{opacity:.8}}
+.tear{position:absolute;top:-30px;width:14px;height:20px;background:rgba(150,200,255,.85);border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+  animation:fall linear forwards;pointer-events:none}
+@keyframes fall{to{transform:translateY(110vh)}}
+.shaking{animation:shake .08s infinite}
+@keyframes shake{25%{transform:translate(4px,-3px)}50%{transform:translate(-4px,2px)}75%{transform:translate(3px,4px)}}
 .tools{position:absolute;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:6px}
 .tool{background:rgba(255,255,255,.9);border:3px solid transparent;border-radius:16px;padding:5px 8px 4px;min-width:62px;
   color:var(--ink);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:1px;position:relative}
@@ -152,9 +182,10 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
   </div>
   <button id="startBtn" class="big">청소 시작!</button>
   <p class="best" id="bestTxt"></p>
-  <p class="howto">여자친구가 방을 돌아다니며 머리카락을 흘려요. 외출하면 <b>한 가닥도 남김없이</b> 치우세요.<br>
-  그런데 <b>갑자기 돌아와서 방을 둘러볼 수도 있어요.</b> 들키면 화내요! 가구 뒤에 엎드려 숨으세요.<br>
-  가구 밑은 어두우니 <b>손전등</b>으로 비춰 보고, 카펫 위는 <b>빗자루</b>로 쓸어내세요.</p>
+  <p class="howto">여자친구가 먼저 외출했다. 몰래 방을 싹 치워서 <b>서프라이즈</b> 해주자!<br>
+  시간 제한은 없어요. 숨은 머리카락을 <b>한 가닥도 남김없이</b> 찾아내세요.<br>
+  가구 밑은 <b>손전등</b>으로, 카펫 위는 <b>빗자루</b>로, 안 보이면 <b>돋보기</b>와 <b>힌트</b>로.</p>
+  <p class="best" id="dexTxt"></p>
 </section>
 
 <section id="screen-game" class="screen">
@@ -166,10 +197,12 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
   </div>
   <div id="cross"></div>
   <div id="crossTip"></div>
-  <div id="speech"></div>
+  <div class="speech" id="speechG"></div>
+  <div class="speech" id="speechM"></div>
   <div id="flash"></div>
   <div id="toast"></div>
-  <div id="mystery"><div class="q">🤔</div><p>이건 어디서 나온 거지…?</p></div>
+  <div id="tint"></div>
+  <div id="thought"><canvas id="thoughtPic" width="144" height="144"></canvas><div class="tx" id="thoughtTx"></div></div>
   <div id="joy"><i></i></div>
   <button id="useBtn">사용</button>
   <div class="tools">
@@ -179,11 +212,21 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
     <button class="tool sep" data-toggle="mag"><span class="key">Z</span><span class="ic">🔍</span>돋보기</button>
     <button class="tool" data-toggle="flash"><span class="key">F</span><span class="ic">🔦</span>손전등</button>
     <button class="tool" data-toggle="prone"><span class="key">C</span><span class="ic">🛌</span>엎드리기</button>
+    <button class="tool" data-toggle="hint"><span class="key">H</span><span class="ic">💡</span><span id="hintTxt">힌트</span></button>
   </div>
   <div id="untangle" class="hidden">
     <canvas id="roller" width="400" height="400"></canvas>
     <p id="untangleTip">머리카락이 롤러에 감겼다!<br>빙빙 돌려서 풀어요 🌀</p>
   </div>
+  <div id="choice" class="hidden"><div class="panel"><h2>어떻게 할까…?</h2><div class="opts">
+    <button data-end="smash">💥 방을 부순다</button>
+    <button data-end="cry">😢 눈물을 흘린다</button>
+    <button data-end="fire">🔥 집에 불을 지른다</button>
+    <button data-end="leave">🚪 조용히 떠난다</button>
+    <button data-end="clean">🧹 계속 청소한다</button>
+  </div></div></div>
+  <div id="dlg" class="hidden"><button class="skip" id="skipBtn">건너뛰기 ⏭</button><div class="box" id="dlgBox"><span class="who" id="dlgWho"></span><span id="dlgTx"></span><span class="next">▼</span></div></div>
+  <div id="fade"></div>
   <div id="pause" class="overlay hidden">
     <div class="panel">
       <h2 id="pauseTitle">청소 준비!</h2>
@@ -194,6 +237,7 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
         <tr><td>도구 바꾸기</td><td>1 핀셋 · 2 청소기 · 3 빗자루</td></tr>
         <tr><td>돋보기</td><td>Z 또는 오른쪽 클릭 (누르는 동안)</td></tr>
         <tr><td>손전등 / 엎드리기</td><td>F / C</td></tr>
+        <tr><td>힌트</td><td>H (20초마다)</td></tr>
       </table>
       <div class="go">화면을 클릭하면 시작해요</div>
       <button class="smallbtn" id="quitBtn">꾸미기로 돌아가기</button>
@@ -207,12 +251,10 @@ h1{margin:8px 0 2px;font-size:clamp(26px,6vw,40px);font-weight:400;text-align:ce
     <p class="quote" id="resQuote"></p>
     <div class="rank" id="resRank"></div>
     <div class="stats">
-      <div><small>치운 머리카락</small><b id="resCount"></b></div>
-      <div><small>걸린 시간</small><b id="resTime"></b></div>
-      <div><small>정체불명의 털</small><b id="resMyst"></b></div>
-      <div><small>들킨 횟수</small><b id="resCaught"></b></div>
-      <div><small>핀셋 / 청소기</small><b id="resTools"></b></div>
-      <div><small>최고 기록</small><b id="resBest"></b></div>
+      <div><small>찾은 머리카락</small><b id="resCount"></b></div>
+      <div><small>청소 시간</small><b id="resTime"></b></div>
+      <div><small>엔딩 도감</small><b id="resDex"></b></div>
+      <div><small>최고 기록 (다 치운 시간)</small><b id="resBest"></b></div>
     </div>
     <div class="btns">
       <button class="primary" id="againBtn">다시 하기</button>
