@@ -19,7 +19,7 @@ const iga = n => { const c = n.charCodeAt(n.length - 1); return c >= 0xac00 && c
 const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 const DEBUG = /[?&]debug/.test(location.search);
 // GitHub Pages caches files separately; if this script doesn't match the page, reload once with fresh files
-const BUILD = '7';
+const BUILD = '8';
 {
   const meta = document.querySelector('meta[name="build"]');
   if ((!meta || meta.content !== BUILD) && !/[?&]r=/.test(location.search)) {
@@ -293,8 +293,23 @@ function init3D() {
   box(0.32, 0.02, 0.24, 2.7, 0.76, -0.5, lam('#b9bdc8'));
   box(0.12, 0.2, 0.12, 2.75, 0.76, 0.05, lam('#ffb3c8'));
   // wardrobe
-  boxXZ(-3, -2.42, 0, 2.0, 1.1, 2.5, lam('#ecd3b8'));
-  boxXZ(-2.43, -2.41, 0.1, 1.9, 1.15, 1.79, lam('#e3c6a6')); boxXZ(-2.43, -2.41, 0.1, 1.9, 1.81, 2.45, lam('#e3c6a6'));
+  const wardBody = boxXZ(-3, -2.42, 0, 2.0, 1.1, 2.5, lam('#ecd3b8'));
+  const wardDoors = [boxXZ(-2.43, -2.41, 0.1, 1.9, 1.15, 1.79, lam('#e3c6a6')), boxXZ(-2.43, -2.41, 0.1, 1.9, 1.81, 2.45, lam('#e3c6a6'))];
+  for (const m of [wardBody, ...wardDoors]) m.userData.prop = 'wardrobe';
+  // what you see once it's open: a dark inside with her clothes hanging
+  const wardIn = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.8), new THREE.MeshLambertMaterial({ map: canvasTex(260, 360, (c, w, h) => {
+    c.fillStyle = '#3b2a22'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#9a8f88'; c.fillRect(8, 30, w - 16, 6);
+    const cols = ['#f4a3b8', '#fff1a8', '#9ec4bd', '#ffffff', '#c9a6e8', '#f7c59f'];
+    for (let i = 0; i < 7; i++) {
+      const x = 22 + i * 32, len = 150 + (i * 37) % 90;
+      c.strokeStyle = '#9a8f88'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + 12, 33); c.lineTo(x + 12, 46); c.stroke();
+      c.fillStyle = cols[i % cols.length]; c.beginPath(); c.moveTo(x, 50); c.lineTo(x + 24, 50); c.lineTo(x + 28, 50 + len); c.lineTo(x - 4, 50 + len); c.fill();
+    }
+    c.strokeStyle = 'rgba(20,12,10,.8)'; c.lineWidth = 1;
+    for (let i = 0; i < 40; i++) { const x = Math.random() * w, y = h - Math.random() * 40; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 8, y - 6, x + 18, y + 2); c.stroke(); }
+  }) }));
+  wardIn.rotation.y = Math.PI / 2; wardIn.position.set(-2.418, 1.0, 1.8); wardIn.visible = false; scene.add(wardIn);
   // dresser + mirror
   boxXZ(-1.25, -0.25, 0, 0.8, -2.5, -2.1, lam('#ecccaa'));
   const mirror = new THREE.Mesh(new THREE.CircleGeometry(0.32, 32), new THREE.MeshBasicMaterial({ color: '#dff0f8' }));
@@ -416,7 +431,7 @@ function init3D() {
   const raycaster = new THREE.Raycaster();
   for (const m of furnMeshes) m.userData.home = { p: m.position.clone(), r: m.rotation.clone() };
   R = { renderer, scene, camera, aimTargets, raycaster, flash, doorPivot, hairGeo, hairPos, hairCol, MAXH, MAXV,
-    sprites, furnMeshes, rug, rugRoll, plantParts, flameTex, fireLight, flames: [], hand, hammer, lighter, lFlame, door, doorDark, puddle: null, tw, twA, twB, vac, brm, bristle, torch };
+    sprites, furnMeshes, rug, rugRoll, plantParts, wardDoors, wardIn, flameTex, fireLight, flames: [], hand, hammer, lighter, lFlame, door, doorDark, puddle: null, tw, twA, twB, vac, brm, bristle, torch };
   resize();
 }
 
@@ -451,7 +466,7 @@ function newGame() {
     curly: null, curlyFound: false, revealT: null, cleanTime: null,
     revealQ: [], qT: 0, qWait: 0, qHinted: false, hintCD: 0, keepLineT: 6, manLeaveT: 6,
     endT: 0, fx: [], hand: { close: 0, bob: 0, sweep: 0 },
-    rugK: 0, rugWant: 0, plantK: 0, plantWant: 0, interact: null, propTipT: 0
+    rugK: 0, rugWant: 0, plantK: 0, plantWant: 0, wardK: 0, wardWant: 0, wardSpilled: false, interact: null, propTipT: 0
   };
   resetProps();
   Object.assign(player, { x: -0.4, z: 1.0, eye: 0.85, prone: false, pitch: -0.12 });
@@ -581,7 +596,7 @@ function onCurlyFound() {
   G.revealT = rand(15, 25);
   sfx.myst();
   thought('(…이건 어디서 나온 거지?)', 3.2, true);
-  setTimeout(() => { if (G && G.phase === 'clean') thought('(내 것도 아니고… 여친 머리카락도 아닌데. 꼬불꼬불하네…)', 3.6, true); }, 3400);
+  setTimeout(() => { if (G && G.phase === 'clean') thought(`(내 것도 아니고… ${look.name} 머리카락도 아닌데. 꼬불꼬불하네…)`, 3.6, true); }, 3400);
 }
 function warnFar() {
   if (G.farWarnT > 0) return;
@@ -655,7 +670,13 @@ function broomStep(dt) {
 function resetProps() {
   rugDown = true;
   Object.assign(FURN.find(f => f.id === 'plant'), PLANT_HOME);
-  setPlantK(0); setRugK(0);
+  setPlantK(0); setRugK(0); setWardK(0);
+}
+function setWardK(k) {
+  const th = k * 1.75, [a, b] = R.wardDoors;
+  a.position.set(-2.42 + 0.32 * Math.sin(th), a.position.y, 1.15 + 0.32 * Math.cos(th)); a.rotation.y = th;
+  b.position.set(-2.42 + 0.32 * Math.sin(th), b.position.y, 2.45 - 0.32 * Math.cos(th)); b.rotation.y = -th;
+  R.wardIn.visible = k > 0.02;
 }
 function setRugK(k) {
   const { rug, rugRoll } = R;
@@ -675,6 +696,22 @@ function interact() {
   const p = G.interact;
   if (!p) return;
   if (p === 'door') { finishAct(true); return; }
+  if (p === 'wardrobe') {
+    G.wardWant = G.wardWant ? 0 : 1;
+    sfx.doorOpen();
+    if (G.wardWant && !G.wardSpilled) {
+      // she stuffed everything in there… along with a whole lot of hair
+      G.wardSpilled = true;
+      const n = { easy: 10, normal: 16, hard: 24 }[look.diff];
+      for (let i = 0; i < n; i++) {
+        const sz = rand(1.2, 2.4);
+        addHair(rand(-2.36, -1.75), clamp(sz + rand(-0.15, 0.15), 1.12, 2.45), { fine: Math.random() < 0.3, fall: true, sx: rand(-2.42, -2.3), sy: rand(0.4, 1.7), sz });
+      }
+      setTimeout(() => sfx.sweep(), 250);
+      thought('(으악… 옷장 열자마자 머리카락이 우수수…)', 2.6);
+    }
+    return;
+  }
   if (p === 'rug') {
     if (G.rugWant === 0) {
       G.rugWant = 1; rugDown = false;
@@ -708,6 +745,10 @@ function propsStep(dt) {
     G.rugK = Math.abs(G.rugK - G.rugWant) < 0.01 ? G.rugWant : lerp(G.rugK, G.rugWant, k);
     setRugK(G.rugK);
     if (G.rugK === 0 && !rugDown) { rugDown = true; replaceAll(); }
+  }
+  if (Math.abs(G.wardK - G.wardWant) > 0.001) {
+    G.wardK = Math.abs(G.wardK - G.wardWant) < 0.01 ? G.wardWant : lerp(G.wardK, G.wardWant, Math.min(1, dt * 5));
+    setWardK(G.wardK);
   }
   if (Math.abs(G.plantK - G.plantWant) > 0.001) {
     G.plantK = Math.abs(G.plantK - G.plantWant) < 0.01 ? G.plantWant : lerp(G.plantK, G.plantWant, k);
@@ -842,10 +883,8 @@ function startReveal() {
   Object.assign(m, { x: DOOR_IN.x + 0.15, z: DOOR_IN.z - 0.05, tx: 2.3, tz: -1.6, vis: true, exitAfter: false, lookAtPlayer: false, shock: false, speed: 0.7 });
   G.revealQ = [
     { who: 'girl', text: '히히 남친 오늘 하루 종일 밖에 있대~' },
-    { who: 'man', text: '오 진짜? 그럼 편하게 있다 가야겠다~' },
     { who: 'girl', text: '…어?', act: () => { g.shock = m.shock = true; g.lookAtPlayer = m.lookAtPlayer = true; g.tx = g.x; g.tz = g.z; m.tx = m.x; m.tz = m.z; sfx.shock(); } },
     { who: 'girl', text: '자, 자기야…?! 나간다며…?!' },
-    { who: 'man', text: '…누구세요?' },
     { who: 'inner', text: '(…저 꼬불꼬불한 파마머리. 아까 그 꼬불털…!)', pic: true }
   ];
   G.qT = 0; G.qWait = 0; G.qHinted = false; G.revealAt = G.time;
@@ -898,7 +937,7 @@ function tickAct(dt, pressed) {
   G.actLineT -= dt;
   const react = (lines) => {
     if (G.actLineT > 0) return;
-    const a = [g, m].filter(a => a.vis && !a.exitAfter && onScreen(a));
+    const a = [g].filter(a => a.vis && !a.exitAfter && onScreen(a));
     if (!a.length) return;
     say(pick(a), pick(lines), 2.3); G.actLineT = rand(2.8, 4.5);
   };
@@ -943,7 +982,7 @@ function tickAct(dt, pressed) {
   if (!G.fled && (R.flames.length > 14 || S.smash >= 7)) {
     G.fled = true;
     const fire = R.flames.length > 14;
-    say(g, fire ? '꺄아아악!! 불이야!!' : '자기야 미쳤어?!', 2.2); say(m, fire ? '튀어!!' : '저, 전 이만…!!', 2.2);
+    say(g, fire ? '꺄아아악!! 불이야!!' : '자기야 미쳤어?!', 2.2);
     for (const a of [g, m]) if (a.vis) { a.lookAtPlayer = false; a.shock = true; a.tx = DOOR_IN.x; a.tz = DOOR_IN.z; a.speed = 1.8; a.exitAfter = true; }
     G.doorWant = 1; G.actLineT = 99;
   }
@@ -959,7 +998,6 @@ function tickAct(dt, pressed) {
   }
   // the other guy slips out eventually anyway
   if (G.time - G.revealAt > 14 && m.vis && !m.exitAfter) {
-    say(m, '저… 저는 이만 가볼게요…', 2.5);
     m.lookAtPlayer = false; m.shock = false; m.tx = DOOR_IN.x; m.tz = DOOR_IN.z; m.exitAfter = true; G.doorWant = 1;
   }
   if (remaining() === 0 && !G.allClean) { G.allClean = true; thought('(…깨끗하다.)', 2.5); if (g.vis && !g.exitAfter) say(g, '…다 치웠네. 미안해, 자기야.', 2.8); }
@@ -1071,7 +1109,7 @@ function update(dt) {
     updateAim();
     const pressed = input.use && !input.usePrev;
     input.usePrev = input.use;
-    G.interact = aim.prop && !ACT_TOOLS.includes(tool) && (G.rugK === G.rugWant) && (G.plantK === G.plantWant) ? aim.prop : null;
+    G.interact = aim.prop && !ACT_TOOLS.includes(tool) && (G.rugK === G.rugWant) && (G.plantK === G.plantWant) && (G.wardK === G.wardWant) ? aim.prop : null;
     if (ph === 'act' && rayFirst([R.door, R.doorDark], 2.0)) G.interact = 'door';
     if (input.interact) { input.interact = false; interact(); }
     if (ph === 'act') tickAct(dt, pressed);
@@ -1103,7 +1141,7 @@ function update(dt) {
     G.cleanTime = G.time;
     const key = 'hairclean3d_best_' + look.diff, best = +store.get(key) || 0;
     if (!best || G.cleanTime < best) store.set(key, G.cleanTime.toFixed(2));
-    if (ph === 'clean') { thought('(다 치웠다! 여친 오면 깜짝 놀라겠지? 😊)', 3.5); sfx.win(); G.revealT = Math.min(G.revealT == null ? 5 : G.revealT, 5); }
+    if (ph === 'clean') { thought(`(다 치웠다! ${look.name} 오면 깜짝 놀라겠지? 😊)`, 3.5); sfx.win(); G.revealT = Math.min(G.revealT == null ? 5 : G.revealT, 5); }
   }
   if (ph === 'clean' && G.curlyFound) {
     G.revealT -= dt;
@@ -1286,7 +1324,7 @@ function updateHud() {
   phaseEl.textContent = PH[G.phase] || ''; phaseEl.classList.toggle('warn', G.phase === 'reveal');
   const mag = magOn || input.magHold;
   crossEl.className = (mag ? 'mag ' : '') + (aim.ok ? '' : aim.reason);
-  const PROP_TXT = { rug: G.rugWant ? '카펫 다시 깔기' : '카펫 걷어보기', plant: G.plantWant ? '화분 제자리에' : '화분 옮겨보기', door: '나가기 (끝내기)' };
+  const PROP_TXT = { rug: G.rugWant ? '카펫 다시 깔기' : '카펫 걷어보기', plant: G.plantWant ? '화분 제자리에' : '화분 옮겨보기', wardrobe: G.wardWant ? '옷장 닫기' : '옷장 열어보기', door: '나가기 (끝내기)' };
   tipEl.textContent = play && G.interact ? (isTouch ? '✋ ' : '[E] ') + PROP_TXT[G.interact] : play && !aim.ok && aim.reason === 'far' ? '너무 멀어요' : '';
   actBtn.style.display = isTouch && play && G.interact ? 'block' : 'none';
   if (G.interact) actBtn.textContent = '✋';
